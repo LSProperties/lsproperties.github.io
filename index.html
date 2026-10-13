@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://accounts.google.com/gsi/; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Rentals"><meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png">
+<title>Rentals</title>
+<link rel="stylesheet" href="shell.css">
+</head><body>
+<header><h1>Rentals</h1><div class="small" id="who"></div></header>
+<main>
+  <section id="loading"><p class="small">Loading&hellip;</p></section>
+
+  <section id="signin" hidden>
+    <h2>Sign in</h2>
+    <p class="small">Use the Google account the family uses for the rentals.</p>
+    <div id="gbtn"></div>
+    <p class="small" id="gNote"></p>
+    <details id="codeBox"><summary>Or get a sign-in code by email</summary>
+      <div class="row"><input id="email" type="email" placeholder="Your email" autocomplete="email"><button id="sendCode" type="button">Email me a code</button></div>
+      <div class="row" id="codeRow" hidden><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code"><button id="useCode" type="button">Sign in</button></div>
+    </details>
+    <p class="msg" id="signMsg" role="status"></p>
+  </section>
+
+  <section id="home" hidden>
+    <a class="tile" href="fi/"><span class="ico">&#x1F3E0;</span><span><b>Inspections</b><br><span class="small">Flat inspections, photos and reports</span></span></a>
+    <a class="tile" href="tm/"><span class="ico">&#x1F465;</span><span><b>Tenancies</b><br><span class="small">Viewings, applicants, agreements and bonds</span></span></a>
+    <details id="devBox"><summary>Signed-in devices</summary><div id="devices" class="small">Loading&hellip;</div></details>
+    <button id="signout" class="quiet" type="button">Sign out of this phone</button>
+    <p class="small" id="ver"></p>
+  </section>
+</main>
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script src="signin.js"></script>
+<script src="https://accounts.google.com/gsi/client" async></script>
+</body></html>

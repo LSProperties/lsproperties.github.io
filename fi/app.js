@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.17.4';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.17.5';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -180,7 +180,6 @@ var Probe=(function(){
   }
   return {start:start,html:html};
 })();
-Probe.start();   // read what the last open left behind before anything else runs
 
 /* ================= State & navigation ================= */
 var S = { props:[], draft:null, areaIdx:0, pin:null, editing:null, stack:[], history:[] };
@@ -777,8 +776,7 @@ VIEWS.home = function(){
       if(rl.length>S.recentShow) h+='<button class="btn block dashed" type="button" data-act="recent-more">Show more ('+(rl.length-S.recentShow)+')</button>';
       if(HAS_GAS && S.recentOffline) h+='<div class="small muted" style="text-align:center;margin-block-start:6px">Offline — showing the list saved on this device.</div>';
     }
-    h+='<button type="button" class="small muted tap" data-act="storage-test" style="display:block;margin:8px auto 0;background:none;border:0;color:inherit;font:inherit;cursor:pointer"><u>Storage check</u></button>';
-    h+='<button type="button" class="small muted tap" data-act="check-update" style="display:block;margin:18px auto 0;background:none;border:0;color:inherit;font:inherit;cursor:pointer" title="Check for updates">App version '+APP_VERSION+(storageCode()?' · storage '+storageCode():'')+(S.serverVersion?' · backend '+esc(S.serverVersion):'')+(HAS_GAS?'':' · demo')+' · <u>check for updates</u></button>';
+    h+='<div class="small muted" style="text-align:center;margin-block-start:18px">App version '+APP_VERSION+(S.serverVersion?' · backend '+esc(S.serverVersion):'')+(HAS_GAS?'':' · demo')+'</div>';   // (Storage check and the check-for-updates link removed in 1.17.5; updates are still checked automatically)
     $('#app').innerHTML=h;
     setFooter('<button class="btn" data-act="refresh" type="button">↻ Refresh</button><button class="btn" data-act="admin" type="button">⚙ Manage properties</button>');
   });

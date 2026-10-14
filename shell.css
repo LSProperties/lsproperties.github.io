@@ -2,7 +2,7 @@
 @media (prefers-color-scheme: dark){:root{--bg:#0b1220;--card:#111a2e;--ink:#e2e8f0;--muted:#94a3b8;--line:#1e293b;--bad:#f87171}}
 *{box-sizing:border-box}
 body{margin:0;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
-header{background:var(--acc);color:#fff;padding:calc(16px + env(safe-area-inset-top)) 16px 14px}
+header{background:var(--acc);color:#fff;padding:calc(22px + env(safe-area-inset-top)) 16px 14px}
 header h1{margin:0;font-size:1.3rem}header .small{color:#d1fae5}
 main{max-width:560px;margin:0 auto;padding:16px}
 section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}

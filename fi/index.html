@@ -228,7 +228,7 @@ input[type=checkbox]{accent-color:#7c3aed;width:18px;height:18px;vertical-align:
 @keyframes fall{to{transform:translate3d(var(--dx),110vh,0) rotate(var(--rot));opacity:.9}}
 @media (prefers-reduced-motion: reduce){ *,*::before,*::after{animation:none!important;transition:none!important} }
 </style>
-<style>/* Rentals app: header under the see-through status bar */ .bar{padding-block-start:max(14px,calc(env(safe-area-inset-top) + 8px))}</style>
+<style>/* Rentals app: header under the see-through status bar; its content starts 20px lower, below the band iOS softens under the status bar */ .bar{padding-block-start:max(14px,calc(env(safe-area-inset-top) + 20px))}</style>
 </head>
 <body>
 <header class="bar">
@@ -245,8 +245,8 @@ input[type=checkbox]{accent-color:#7c3aed;width:18px;height:18px;vertical-align:
 <input type="file" id="camInput" accept="image/*" capture="environment" class="hidden">
 <input type="file" id="galInput" accept="image/*" multiple class="hidden">
 
-<script src="../config.js?v=2026.10.14-dca210d"></script>
-<script src="../api.js?v=2026.10.14-dca210d"></script>
-<script src="app.js?v=2026.10.14-dca210d"></script>
+<script src="../config.js?v=2026.10.14-134c0f4"></script>
+<script src="../api.js?v=2026.10.14-134c0f4"></script>
+<script src="app.js?v=2026.10.14-134c0f4"></script>
 </body>
 </html>

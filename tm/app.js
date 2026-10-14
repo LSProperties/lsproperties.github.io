@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.13.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.13.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -18,7 +18,14 @@ function pad(n){ return (n<10?'0':'')+n; }
 function localInput(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes()); }
 function dateInput(iso){ if(!iso) return ''; var d=new Date(iso); return isNaN(d)? '' : d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function telHref(p){ return 'tel:'+String(p||'').replace(/[^\d+]/g,''); }
-function smsHref(p){ return 'sms:'+String(p||'').replace(/[^\d+]/g,''); }
+function smsHref(p,body){ return 'sms:'+String(p||'').replace(/[^\d+]/g,'')+(body?'?&body='+encodeURIComponent(body):''); }
+/* The text to a referee: who gave their number (everyone in the group who did), for which property, signed from My details */
+function refSmsText(c,app,others){
+  var first=String(c.contact||'').trim().split(/\s+/)[0]||'', names=[app.name].concat((others||[]).map(function(o){ return o.applicant; })).filter(Boolean);
+  var me=myName();
+  return 'Hi'+(first?' '+first:'')+', I was given your number by '+nameList(names)+' as a reference for their rental application'+(app.address1?' for '+app.address1:'')+'. '+
+    'Can you please let me know a good time to call and ask a couple of questions? Many thanks'+(me?', '+me:'');
+}
 function validEmail(v){ return !v || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v).trim()); }
 function buzz(){ try{ if(navigator.vibrate) navigator.vibrate(12); }catch(e){} }
 
@@ -2597,7 +2604,7 @@ VIEWS.ref = function(arg){
       (c.rent!==''?'<dt>Rent paid</dt><dd>'+esc(isFinite(Number(c.rent))?money(c.rent):c.rent)+'</dd>':'')+(c.vacated?'<dt>Moved out</dt><dd>'+esc(/^\d{4}-\d\d-\d\dT/.test(c.vacated)?fmtDate(c.vacated):c.vacated)+'</dd>':'')+
       (c.emailSent?'<dt>Emailed</dt><dd>\u2709 '+esc(fmt(c.emailSent))+'</dd>':'')+
       (c.checkedAt?'<dt>Last checked</dt><dd>'+esc(fmt(c.checkedAt))+(c.checkedBy?' by '+esc(c.checkedBy):'')+'</dd>':'')+'</dl>'+
-      '<div class="callbar">'+(c.phone?'<a class="btn sm primary" target="_blank" rel="noopener" href="'+esc(telHref(c.phone))+'">\uD83D\uDCDE Call</a><a class="btn sm" target="_blank" rel="noopener" href="'+esc(smsHref(c.phone))+'">\uD83D\uDCAC Text</a>':'<span></span><span></span>')+
+      '<div class="callbar">'+(c.phone?'<a class="btn sm primary" target="_blank" rel="noopener" href="'+esc(telHref(c.phone))+'">\uD83D\uDCDE Call</a><a class="btn sm" target="_blank" rel="noopener" href="'+esc(smsHref(c.phone,refSmsText(c,r.app,sharedOf(arg.ref,c.slot))))+'">\uD83D\uDCAC Text</a>':'<span></span><span></span>')+
       (c.email?'<button class="btn sm" type="button" data-act="email-ref">\u2709 Email</button>':'<span></span>')+'</div>'+pdfLink(r.app)+'</div>';
     var others=sharedOf(arg.ref,c.slot);
     if(others.length){

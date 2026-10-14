@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.13.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.13.2';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -19,11 +19,17 @@ function localInput(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d
 function dateInput(iso){ if(!iso) return ''; var d=new Date(iso); return isNaN(d)? '' : d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function telHref(p){ return 'tel:'+String(p||'').replace(/[^\d+]/g,''); }
 function smsHref(p,body){ return 'sms:'+String(p||'').replace(/[^\d+]/g,'')+(body?'?&body='+encodeURIComponent(body):''); }
+/* The street without its number (or flat / unit), so a text to a referee doesn't say exactly where someone is moving */
+function streetOnly(a){
+  var s=String(a||'').trim(), prev;
+  do{ prev=s; s=s.replace(/^(?:(?:flat|unit|apartment|apt|room)\s*)?[\w\/-]*\d[\w\/-]*\s*,?\s*/i,''); }while(s && s!==prev);
+  return s.split(',')[0].trim();
+}
 /* The text to a referee: who gave their number (everyone in the group who did), for which property, signed from My details */
 function refSmsText(c,app,others){
   var first=String(c.contact||'').trim().split(/\s+/)[0]||'', names=[app.name].concat((others||[]).map(function(o){ return o.applicant; })).filter(Boolean);
-  var me=myName();
-  return 'Hi'+(first?' '+first:'')+', I was given your number by '+nameList(names)+' as a reference for their rental application'+(app.address1?' for '+app.address1:'')+'. '+
+  var me=myName(), street=streetOnly(app.address1);
+  return 'Hi'+(first?' '+first:'')+', I was given your number by '+nameList(names)+' as a reference for their rental application'+(street?' for a property on '+street:'')+'. '+
     'Can you please let me know a good time to call and ask a couple of questions? Many thanks'+(me?', '+me:'');
 }
 function validEmail(v){ return !v || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v).trim()); }

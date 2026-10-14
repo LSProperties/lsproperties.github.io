@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.14.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.14.2';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -41,11 +41,11 @@ function gas(fn){
 }
 var api = {};
 /* calls that only read: they don't hold the leave-page warning */
-var TM_READS = /^tm(Bootstrap|Refresh|GetVersion|GetReferences|CreditDetails|PhotoIdFile|ScreeningQuestions|TribunalSearch|GetProgress|AgreementSearch|AgreementFields|CheckTemplate|PreviewAgreement|TenancySummary|BodyCorporateFiles|TenantProfile|GroupDeletePlan|AgreementProgress|ChangeProgress|RefreshAgreement|RefreshTenancyChange)$/;
+var TM_READS = /^tm(Bootstrap|Refresh|GetVersion|GetReferences|CreditDetails|PhotoIdFile|DriveFile|ScreeningQuestions|TribunalSearch|GetProgress|AgreementSearch|AgreementFields|CheckTemplate|PreviewAgreement|TenancySummary|BodyCorporateFiles|TenantProfile|GroupDeletePlan|AgreementProgress|ChangeProgress|RefreshAgreement|RefreshTenancyChange)$/;
 /* Speed check: the last 40 calls (in memory only) */
 function speedNote(fn,ms,timing,ok){ S.speed=S.speed||[]; S.speed.unshift({fn:fn,ms:ms,server:timing?timing.serverMs:null,parts:timing?timing.parts:null,ok:ok,at:new Date().toISOString()}); S.speed=S.speed.slice(0,40); }
 ['tmBootstrap','tmSaveViewing','tmSetViewingStatus','tmSaveAttendee','tmRemoveAttendee','tmSendApplications','tmRefresh',
- 'tmUpdateApplication','tmGetReferences','tmCreditDetails','tmPhotoIdFile','tmScreeningQuestions','tmSaveScreeningQuestions','tmSaveReferenceCheck','tmAddContact','tmMarkEmailSent','tmGetVersion','tmSetGroup','tmDetachFromViewing','tmDeleteViewing','tmResendApplyLink','tmCancelApplyForm','tmCreateGroup','tmAddToGroup','tmSetGroupArrival','tmSetAttendance','tmMoveGroupToViewing','tmSaveTribunalCheck','tmTribunalSearch','tmGetProgress','tmSaveAgreementSettings','tmSendAgreement','tmRefreshAgreement','tmCancelAgreement',
+ 'tmUpdateApplication','tmGetReferences','tmCreditDetails','tmPhotoIdFile','tmDriveFile','tmScreeningQuestions','tmSaveScreeningQuestions','tmSaveReferenceCheck','tmAddContact','tmMarkEmailSent','tmGetVersion','tmSetGroup','tmDetachFromViewing','tmDeleteViewing','tmResendApplyLink','tmCancelApplyForm','tmCreateGroup','tmAddToGroup','tmSetGroupArrival','tmSetAttendance','tmMoveGroupToViewing','tmSaveTribunalCheck','tmTribunalSearch','tmGetProgress','tmSaveAgreementSettings','tmSendAgreement','tmRefreshAgreement','tmCancelAgreement',
  'tmSaveProperty','tmSetPropertyActive','tmSaveLandlord','tmDeleteLandlord','tmSaveTenancy','tmDeleteTenancy','tmCreateTenancyFromGroup',
  'tmRecordBondPayment','tmDeleteBondPayment','tmSendBondReceipt','tmMarkBondLodged','tmSetBondNumber','tmSetBondMethod',
  'tmPreviewAgreement','tmResendAgreementLink','tmChangeTenants','tmRefreshTenancyChange','tmCancelTenancyChange','tmResendChangeLink','tmSetBondTask','tmTenancySummary','tmSaveTermsMaster','tmCopyTermsToProperties','tmBodyCorporateFiles','tmUploadBodyCorporateRules','tmTenantProfile','tmSaveTenantProfile','tmGroupDeletePlan','tmDeleteGroup','tmSetAdminPin','tmSavePerson','tmMergePeople','tmAgreementProgress','tmChangeProgress','tmSaveMyProfile','tmTestCreateGroup','tmTestSendForms','tmTestFillForm','tmTestApprove','tmTestSendAgreement','tmTestSignNext','tmTestStartChange','tmTestNextName','tmTestFinish'].forEach(function(n){
@@ -2598,24 +2598,35 @@ function photoIdHtml(c){
   if(c.uploadsFolder) return '<a class="btn sm ghost" target="_blank" rel="noopener" href="'+esc(c.uploadsFolder)+'">\uD83D\uDCC1 Uploaded files</a>';
   return '<span class="small muted">No photo ID was uploaded with this application.</span>';
 }
-/* The photo ID shown in the app (fetched by the server), so it opens for everyone using the app, not only the Drive owner */
-function photoIdView(ref,i,name){
-  var m=modal('<div class="row" style="gap:8px"><b class="grow" style="overflow-wrap:anywhere">'+esc(name||'Photo ID')+'</b><button class="btn sm" type="button" data-x>Close</button></div>'+
-    '<div id="piBody" style="margin-block-start:12px;text-align:center"><div class="row" style="justify-content:center;gap:8px;padding:30px 0"><span class="spin"></span><span class="muted">Loading the photo\u2026</span></div></div>'), url='';
+/* Files kept in Google Drive (photo ID, signed applications, agreements, receipts) open here, fetched by the server, so
+   they open for everyone using the app, not only the Drive owner. p resolves to {name, mime, data (base64)}. */
+function fileView(p,name,driveUrl){
+  var m=modal('<div class="row" style="gap:8px"><b class="grow" style="overflow-wrap:anywhere">'+esc(name||'File')+'</b><button class="btn sm" type="button" data-x>Close</button></div>'+
+    '<div id="fvBody" style="margin-block-start:12px;text-align:center"><div class="row" style="justify-content:center;gap:8px;padding:30px 0"><span class="spin"></span><span class="muted">Loading\u2026</span></div></div>'), url='';
   $('.box',m).classList.add('wide');
   function close(){ m.remove(); if(url) URL.revokeObjectURL(url); }
   m.addEventListener('click',function(e){ if(e.target===m||e.target.closest('[data-x]')) close(); });
-  api.tmPhotoIdFile(ref,i).then(function(r){
+  var drive=driveUrl? ' <a class="btn sm ghost" target="_blank" rel="noopener" href="'+esc(driveUrl)+'">Open in Google Drive</a>' : '';
+  p.then(function(r){
     var bin=atob(r.data), u8=new Uint8Array(bin.length); for(var k=0;k<bin.length;k++) u8[k]=bin.charCodeAt(k);
     url=URL.createObjectURL(new Blob([u8],{type:r.mime}));
-    var save='<a class="btn sm" href="'+url+'" download="'+esc(r.name)+'">Save a copy</a>', box=$('#piBody',m); if(!box) return;
+    var btns='<div class="row wrap" style="justify-content:center;gap:8px;margin-block-start:10px"><a class="btn sm" href="'+url+'" download="'+esc(r.name)+'">Save a copy</a>'+
+      (r.mime==='application/pdf'?'<a class="btn sm" href="'+url+'" target="_blank" rel="noopener">Open full screen</a>':'')+drive+'</div>', box=$('#fvBody',m); if(!box) return;
     if(/^image\//.test(r.mime)){
-      box.innerHTML='<img alt="Photo ID" src="'+url+'" style="max-width:100%;max-height:72vh;border-radius:12px;display:block;margin:0 auto">'+'<div style="margin-block-start:10px">'+save+'</div>';
-      $('img',box).addEventListener('error',function(){ box.innerHTML='<div class="small muted" style="margin-block-end:10px">This browser can\u2019t show this kind of picture ('+esc(r.mime)+'). Save a copy to open it.</div>'+save; });
-    } else if(r.mime==='application/pdf') box.innerHTML='<iframe title="Photo ID" src="'+url+'" style="width:100%;height:72vh;border:0;border-radius:12px"></iframe><div style="margin-block-start:10px">'+save+'</div>';
-    else box.innerHTML='<div class="small muted" style="margin-block-end:10px">This file can\u2019t be shown here.</div>'+save;
-  }).catch(function(x){ var box=$('#piBody',m); if(box) box.innerHTML='<div class="err">'+esc(x&&x.message||'Couldn\u2019t load the photo')+'</div>'; });
+      box.innerHTML='<img alt="'+esc(r.name)+'" src="'+url+'" style="max-width:100%;max-height:72vh;border-radius:12px;display:block;margin:0 auto">'+btns;
+      $('img',box).addEventListener('error',function(){ box.innerHTML='<div class="small muted">This browser can\u2019t show this kind of picture ('+esc(r.mime)+'). Save a copy to open it.</div>'+btns; });
+    } else if(r.mime==='application/pdf') box.innerHTML='<iframe title="'+esc(r.name)+'" src="'+url+'" style="width:100%;height:72vh;border:0;border-radius:12px;background:#fff"></iframe>'+btns;
+    else box.innerHTML='<div class="small muted">This file can\u2019t be shown here.</div>'+btns;
+  }).catch(function(x){ var box=$('#fvBody',m); if(box) box.innerHTML='<div class="err">'+esc(x&&x.message||'Couldn\u2019t load the file')+'</div>'+(drive?'<div style="margin-block-start:10px">'+drive+'</div>':''); });
 }
+/* Any link to a single Drive file opens in the viewer instead (folders still open in Drive) */
+var DRIVE_FILE=/^https:\/\/(drive|docs)\.google\.com\/(file\/d\/|open\?id=|uc\?|(document|spreadsheets)\/d\/)/;
+document.addEventListener('click',function(e){
+  var a=e.target.closest&&e.target.closest('a[href]'); if(!a||a.hasAttribute('download')||a.closest('.modal #fvBody')) return;
+  var href=a.getAttribute('href'); if(!DRIVE_FILE.test(href)) return;
+  e.preventDefault(); e.stopPropagation();
+  fileView(api.tmDriveFile(href),(a.textContent||'').replace(/^[^A-Za-z0-9]+/,'').trim()||'File',href);
+},true);
 function centrixText(c){ return 'CENTRIX-FILL '+JSON.stringify(centrixData(c)); }
 /* What will be filled, and what's missing (Centrix needs name, date of birth and an address) */
 function centrixNote(c){
@@ -3299,7 +3310,7 @@ document.addEventListener('click',function(e){
   if(act==='agreement-settings'){ S.pe=null; S.peTabNext='terms'; return go('propEdit',id); }
   // Setup: properties
 
-  if(act==='photo-id') return photoIdView(id,+t.getAttribute('data-i'),t.getAttribute('data-n'));
+  if(act==='photo-id') return fileView(api.tmPhotoIdFile(id,+t.getAttribute('data-i')),t.getAttribute('data-n')||'Photo ID','');
   if(act==='setup-props') return go('setupProps');
   if(act==='setup-landlords') return go('setupLandlords');
   if(act==='setup-questions'){ S.qsE=null; return go('setupQuestions'); }
@@ -3914,6 +3925,7 @@ var Demo = {
       case 'tmGetReferences': return done(Demo.refs(d,a[0]));
       case 'tmScreeningQuestions': return done({sets:JSON.parse(JSON.stringify(d.questions)),legacy:false});
       case 'tmSaveScreeningQuestions': d.questions=a[0].map(function(q,i){ return {id:q.id||('QS-n'+i),name:q.name.trim(),note:q.note||'',flags:q.kind==='Red flags',usedFor:q.kind==='Red flags'?[]:q.usedFor.slice(),items:q.items.map(function(x){ return String(x).trim(); }).filter(String)}; }); return done({sets:JSON.parse(JSON.stringify(d.questions)),legacy:false});
+      case 'tmDriveFile': return done({name:'Signed application.pdf',mime:'image/svg+xml',data:btoa('<svg xmlns="http://www.w3.org/2000/svg" width="420" height="560"><rect width="420" height="560" fill="#fff" stroke="#ccc"/><text x="30" y="60" font-size="26" font-family="sans-serif">DEMO SIGNED DOCUMENT</text></svg>')});
       case 'tmPhotoIdFile': return done({name:'licence.svg',mime:'image/svg+xml',data:btoa('<svg xmlns="http://www.w3.org/2000/svg" width="540" height="340"><rect width="540" height="340" rx="24" fill="#e8f4ee"/><text x="40" y="80" font-size="34" font-family="sans-serif">DEMO DRIVER LICENCE</text><rect x="40" y="120" width="140" height="170" fill="#bbb"/></svg>')});
       case 'tmCreditDetails': var ca=d.applications.find(function(x){return x.ref===a[0];})||{};
         return done({ref:a[0],name:ca.name||'',dob:'1998-04-07',email:ca.email||'',licenceNumber:'AB123456',licenceVersion:'123',

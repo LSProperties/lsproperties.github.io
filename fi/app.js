@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.18.5';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.18.6';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -627,8 +627,12 @@ function editInspDialog(rec){
 /* ================= Reopen an in-progress inspection from its online copy ================= */
 function remoteInProgress(localIds){
   var q=[]; try{ q=JSON.parse(localStorage.getItem('fi-discards')||'[]'); }catch(e){}
-  return (S.inProgress||[]).filter(function(x){ return !localIds[x.id] && q.indexOf(x.id)<0; });
+  var gone=discardedRecently();
+  return (S.inProgress||[]).filter(function(x){ return !localIds[x.id] && q.indexOf(x.id)<0 && !gone[x.id]; });
 }
+/* Inspections deleted on this phone in the last day: never shown or restored again, even from an out-of-date server list */
+function discardedRecently(){ var t={}; try{ t=JSON.parse(localStorage.getItem('fi-discarded')||'{}'); }catch(e){} var now=Date.now(), out={}; Object.keys(t).forEach(function(k){ if(now-t[k]<864e5) out[k]=t[k]; }); return out; }
+function markDiscarded(id){ var t=discardedRecently(); t[id]=Date.now(); store('fi-discarded',t); setInProgress((S.inProgress||[]).filter(function(x){ return x.id!==id; })); changedHere(); }
 /* Saved online by this Google account (last backup, else whoever started it): it's yours, so no need to ask */
 function sameUser(a,b){ return !!a && !!b && String(a).trim().toLowerCase()===String(b).trim().toLowerCase(); }
 function recMine(rec){ return sameUser(rec.savedBy||rec.startedBy,S.me); }
@@ -687,7 +691,7 @@ function discardRemote(id){
   ask('Delete '+rec.propertyName+' ('+rec.type+', started '+fmt(rec.startedAt)+') for everyone? Its uploaded photos move to the Drive bin.',{ok:'Delete'}).then(function(ok){
     if(!ok) return;
     if(!navigator.onLine){ toast('You are offline — try again when you have signal.'); return; }
-    return api.discardInspection(id).then(function(){ changedHere(); setInProgress((S.inProgress||[]).filter(function(x){ return x.id!==id; })); render(); toast('🗑 Deleted'); });
+    return api.discardInspection(id).then(function(){ markDiscarded(id); setInProgress((S.inProgress||[]).filter(function(x){ return x.id!==id; })); render(); toast('🗑 Deleted'); });
   }).catch(function(e){ toast('Couldn’t delete: '+e.message,5000); });
 }
 
@@ -1375,7 +1379,7 @@ document.addEventListener('click',function(ev){
         return ask(x&&x.edit? 'Discard your changes? The submitted inspection stays exactly as it was.' : 'Delete this in-progress inspection? Its photos are removed from this device and from Google Drive.',{ok:x&&x.edit?'Discard changes':'Delete'}); })
       .then(function(ok){ if(!ok) return; var x=dx;
         if(x && x.edit) return dropEditDraft(x);
-        if(x){ allPhotos(x).forEach(function(y){ DB.del('photos',y.p.id); });
+        if(x){ allPhotos(x).forEach(function(y){ DB.del('photos',y.p.id); }); markDiscarded(x.id);
           if(x.folder){ var q; try{ q=JSON.parse(localStorage.getItem('fi-discards')||'[]'); }catch(e){ q=[]; } q.push(x.id); localStorage.setItem('fi-discards',JSON.stringify(q)); flushDiscards(); } }
         if(S.draft&&S.draft.id===id) S.draft=null; return DB.del('drafts',id); }).then(render); break;
     case 'cancel-edit':

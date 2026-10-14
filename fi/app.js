@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.17.1';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.17.2';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -1172,6 +1172,7 @@ document.addEventListener('click',function(ev){
     case 'refresh': loadProps().then(function(){ render(); toast('Properties refreshed'); autoRestore(); }); break;
     case 'open-prop': go('start',id); break;
     case 'begin':
+      if(OLD_APP && S.retire==='block'){ toast('New inspections are started in the new Rentals app now.',6000); break; }
       var p=S.props.find(function(x){return x.id===id;}), insp=$('#stInspector').value.trim();
       if(!insp){ toast('Please enter the inspector name'); return; }
       localStorage.setItem('fi-inspector',insp);
@@ -1299,7 +1300,7 @@ setInterval(function(){ checkForUpdate(); },30*60*1000);
 
 /* ================= Boot ================= */
 function loadProps(){
-  return api.bootstrap().then(function(r){ S.props=r.properties||[]; S.serverVersion=r.version||'';
+  return api.bootstrap().then(function(r){ S.props=r.properties||[]; S.serverVersion=r.version||''; S.retire=r.retire||'';
       if(r.inProgress) setInProgress(r.inProgress);
       if(r.recent){ S.recent=r.recent; S.me=r.me||''; S.recentOffline=false; try{ localStorage.setItem('fi-recent-cache',JSON.stringify({items:r.recent,me:S.me})); }catch(e){} }
  try{ localStorage.setItem('fi-props-cache',JSON.stringify(S.props)); }catch(e){} })
@@ -1310,7 +1311,26 @@ if(!HAS_GAS) $('#demoBanner').classList.remove('hidden');
 net();
 /* Start from what this phone saved last time (properties, recent and in-progress inspections), then refresh from the
    server in the background. Only the very first open on a phone waits for the server. */
-function afterLoad(){ flushDiscards(); autoRestore(); checkForUpdate(true); }
+function afterLoad(){ flushDiscards(); autoRestore(); checkForUpdate(true); moveBanner(); }
+/* The old app (inside Google's frame) is being replaced by the Rentals app: say so, and say how many photos on this
+   phone still have to upload before switching (switching apps doesn't carry photos that haven't uploaded). */
+var OLD_APP = HAS_GAS && !window.RENTALS_CONFIG, NEW_APP_URL = 'https://lsproperties.github.io/';
+function moveBanner(){
+  if(!OLD_APP) return;
+  DB.all('drafts').then(function(list){
+    var n=0; (list||[]).forEach(function(d){ n+=allPhotos(d).filter(function(x){ return !x.p.uploaded; }).length; });
+    var b=$('#moveBanner'); if(!b) return;
+    var gone=false; try{ gone=sessionStorage.getItem('fi-move-hide')==='1'; }catch(e){}
+    if(gone && !n && S.retire!=='block'){ b.classList.add('hidden'); return; }
+    b.innerHTML='🏠 A new <b>Rentals</b> app is replacing this one. <a href="'+NEW_APP_URL+'" target="_blank" rel="noopener" style="color:#fff;font-weight:700">Open the new app</a>'+
+      (n? '<br>⚠ <b>'+n+' photo'+(n===1?'':'s')+'</b> on this phone still to upload. Keep this app open with signal until this says 0, then switch.' : '')+
+      (S.retire==='block'? '<br>New inspections are started in the new app.' : '')+
+      (n||S.retire==='block'? '' : ' <button type="button" data-move="hide" style="background:none;border:0;color:#fff;font:inherit;text-decoration:underline;cursor:pointer">Hide</button>');
+    b.classList.remove('hidden');
+  }).catch(function(){});
+}
+document.addEventListener('click',function(e){ if(e.target.closest('[data-move=hide]')){ try{ sessionStorage.setItem('fi-move-hide','1'); }catch(x){} $('#moveBanner').classList.add('hidden'); } });
+if(OLD_APP) setInterval(moveBanner, 15000);
 var savedProps=null; try{ savedProps=JSON.parse(localStorage.getItem('fi-props-cache')||'null'); }catch(e){}
 if(HAS_GAS && savedProps && savedProps.length){
   S.props=savedProps; S.cur={view:'home'}; render();

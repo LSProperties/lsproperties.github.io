@@ -84,6 +84,19 @@
     document.body.appendChild(b);
   }
 
+  /* A Home button in the page header, back to the Rentals home (devices, sign out, the other section). The pages' own
+     leave warnings still apply, so nothing unsaved is lost by tapping it. */
+  if (APP) {
+    var bar = document.querySelector('header.bar'), badge = document.getElementById('netBadge');
+    if (bar) {
+      var home = document.createElement('a');
+      home.href = '../'; home.className = 'icon-btn'; home.setAttribute('aria-label', 'Rentals home'); home.title = 'Rentals home';
+      home.textContent = '⌂';
+      home.style.cssText = 'text-decoration:none;display:inline-flex;align-items:center;justify-content:center;font-size:1.25rem;margin-inline-start:8px;color:inherit';
+      if (badge && badge.parentNode === bar) bar.insertBefore(home, badge.nextSibling); else bar.appendChild(home);
+    }
+  }
+
   /* Replacements for the pages' two inline handlers */
   document.addEventListener('error', function (e) {
     var img = e.target;

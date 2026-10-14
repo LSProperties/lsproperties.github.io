@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.12.5';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.12.6';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -3816,6 +3816,18 @@ var Demo = {
   }
 };
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
+
+/* The old app (inside Google's frame) is being replaced by the Rentals app: say so, with a link (hidden for the day on request) */
+var OLD_APP = HAS_GAS && !window.RENTALS_CONFIG;
+function moveBanner(){
+  var b=$('#moveBanner'); if(!OLD_APP || !b) return;
+  try{ if(localStorage.getItem('tm-move-hide')===new Date().toDateString()) return; }catch(e){}
+  b.innerHTML='\uD83C\uDFE0 A new <b>Rentals</b> app is replacing this one. <a href="https://lsproperties.github.io/" target="_blank" rel="noopener" style="color:#fff;font-weight:700">Open the new app</a> '+
+    '<button type="button" data-move="hide" style="background:none;border:0;color:#fff;font:inherit;text-decoration:underline;cursor:pointer">Hide today</button>';
+  b.classList.remove('hidden');
+}
+document.addEventListener('click',function(e){ if(e.target.closest('[data-move=hide]')){ try{ localStorage.setItem('tm-move-hide',new Date().toDateString()); }catch(x){} $('#moveBanner').classList.add('hidden'); } });
+moveBanner();
 
 /* ================= Boot ================= */
 if(!HAS_GAS) $('#demoBanner').classList.remove('hidden');

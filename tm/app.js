@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.12.4';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.12.5';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -3437,7 +3437,7 @@ document.addEventListener('keydown',function(e){
 
 });
 $('#backBtn').addEventListener('click',back);
-function net(){ var b=$('#netBadge'); b.textContent=navigator.onLine?(HAS_GAS?'Online':'Demo'):'Offline'; b.classList.toggle('off',!navigator.onLine); }
+function net(){ var b=$('#netBadge'); b.textContent=navigator.onLine?(S.syncing?'Updating...':HAS_GAS?'Online':'Demo'):'Offline'; b.classList.toggle('off',!navigator.onLine); }
 window.addEventListener('online',function(){ net(); checkForUpdate(); }); window.addEventListener('offline',net);
 document.addEventListener('visibilitychange',function(){ if(document.hidden){ if(S.form) persist(true); } else checkForUpdate(); });
 setInterval(function(){ checkForUpdate(); },30*60*1000);
@@ -3820,7 +3820,19 @@ function clone(o){ return JSON.parse(JSON.stringify(o)); }
 /* ================= Boot ================= */
 if(!HAS_GAS) $('#demoBanner').classList.remove('hidden');
 net();
-api.tmBootstrap().then(apply).catch(function(e){
+/* Start from what this phone loaded last time, then refresh from the server in the background. The screen is redrawn
+   with the fresh data unless something is being typed. Only the very first open on a phone waits for the server. */
+var saved=null; try{ saved=JSON.parse(localStorage.getItem('tm-cache')||'null'); }catch(x){}
+if(HAS_GAS && saved && saved.applications){
+  S.st=saved; S.cur={view:'home'}; render();
+  S.syncing=true; net();
+  api.tmBootstrap().then(function(st){
+    apply(st); S.syncing=false; net();
+    var typing=/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName||'');
+    if(!unsavedWork() && !typing && !document.querySelector('.modal')){ var y=window.scrollY; render(); setTimeout(function(){ window.scrollTo(0,y); },0); }
+    checkForUpdate(true);
+  }).catch(function(){ S.syncing=false; net(); toast('Offline: showing what was last loaded',6000); });
+} else api.tmBootstrap().then(apply).catch(function(e){
   try{ S.st=JSON.parse(localStorage.getItem('tm-cache')||'null'); }catch(x){}
   toast(S.st? 'Offline \u2014 showing what was last loaded' : e.message, 6000);
 }).then(function(){ S.cur={view:'home'}; render(); checkForUpdate(true); });

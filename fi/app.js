@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.17.0';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.17.1';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -1286,7 +1286,7 @@ document.addEventListener('change',function(ev){
 $('#camInput').addEventListener('change',function(){ handleFiles(this.files); });
 $('#galInput').addEventListener('change',function(){ handleFiles(this.files); });
 $('#backBtn').addEventListener('click',back);
-function net(){ var b=$('#netBadge'); b.textContent=navigator.onLine?(HAS_GAS?'Online':'Demo'):'Offline'; b.classList.toggle('off',!navigator.onLine); }
+function net(){ var b=$('#netBadge'); b.textContent=navigator.onLine?(S.syncing?'Updating…':HAS_GAS?'Online':'Demo'):'Offline'; b.classList.toggle('off',!navigator.onLine); }
 window.addEventListener('beforeunload',function(ev){
   var d=S.draft; if(!d || !HAS_GAS) return;
   if(!unsaved(d) && !$('#submitStatus .spin')) return;
@@ -1308,5 +1308,13 @@ function loadProps(){
 }
 if(!HAS_GAS) $('#demoBanner').classList.remove('hidden');
 net();
-loadProps().then(function(){ S.cur={view:'home'}; render(); flushDiscards(); autoRestore(); checkForUpdate(true); });
+/* Start from what this phone saved last time (properties, recent and in-progress inspections), then refresh from the
+   server in the background. Only the very first open on a phone waits for the server. */
+function afterLoad(){ flushDiscards(); autoRestore(); checkForUpdate(true); }
+var savedProps=null; try{ savedProps=JSON.parse(localStorage.getItem('fi-props-cache')||'null'); }catch(e){}
+if(HAS_GAS && savedProps && savedProps.length){
+  S.props=savedProps; S.cur={view:'home'}; render();
+  S.syncing=true; net();
+  loadProps().then(function(){ S.syncing=false; net(); if(S.cur && S.cur.view==='home') render(); afterLoad(); });
+} else loadProps().then(function(){ S.cur={view:'home'}; render(); afterLoad(); });
 })();

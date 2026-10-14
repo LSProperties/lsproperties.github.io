@@ -68,7 +68,12 @@
   });
   $('signout').onclick = function () {
     if (!confirm('Sign out of the Rentals app on this phone? Anything not yet saved online stays on the phone, but you will need to sign in again to send it.')) return;
-    call('auth', 'signOut').catch(function () {}).then(function () { S.clear(); location.replace('./'); });
+    call('auth', 'signOut').catch(function () {}).then(function () {
+      // the saved copies of applicant and property lists go too; unsent inspection work (drafts, photos) stays
+      S.clear();
+      ['tm-cache', 'fi-props-cache', 'fi-recent-cache', 'fi-inprogress-cache'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+      location.replace('./');
+    });
   };
 
   /* Start: signed in already? (works offline too: the session is checked when there is signal) */

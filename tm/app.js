@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.12.6';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.13.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -37,9 +37,9 @@ var TM_READS = /^tm(Bootstrap|Refresh|GetVersion|GetReferences|CreditDetails|Tri
 /* Speed check: the last 40 calls (in memory only) */
 function speedNote(fn,ms,timing,ok){ S.speed=S.speed||[]; S.speed.unshift({fn:fn,ms:ms,server:timing?timing.serverMs:null,parts:timing?timing.parts:null,ok:ok,at:new Date().toISOString()}); S.speed=S.speed.slice(0,40); }
 ['tmBootstrap','tmSaveViewing','tmSetViewingStatus','tmSaveAttendee','tmRemoveAttendee','tmSendApplications','tmRefresh',
- 'tmUpdateApplication','tmGetReferences','tmCreditDetails','tmSaveReferenceCheck','tmAddContact','tmReimportReferences','tmMarkEmailSent','tmGetVersion','tmSetGroup','tmDetachFromViewing','tmDeleteViewing','tmResendApplyLink','tmCancelApplyForm','tmCreateGroup','tmAddToGroup','tmSetGroupArrival','tmSetAttendance','tmMoveGroupToViewing','tmSaveTribunalCheck','tmTribunalSearch','tmGetProgress','tmAgreementSearch','tmAgreementFields','tmSaveAgreementSettings','tmSendAgreement','tmRefreshAgreement','tmCancelAgreement',
- 'tmSaveProperty','tmSetPropertyActive','tmCheckTemplate','tmSaveLandlord','tmDeleteLandlord','tmSaveTenancy','tmDeleteTenancy','tmCreateTenancyFromGroup',
- 'tmRecordBondPayment','tmDeleteBondPayment','tmSendBondReceipt','tmMarkBondLodged','tmSetBondNumber','tmSetBondMethod','tmDemoSetProvider',
+ 'tmUpdateApplication','tmGetReferences','tmCreditDetails','tmSaveReferenceCheck','tmAddContact','tmMarkEmailSent','tmGetVersion','tmSetGroup','tmDetachFromViewing','tmDeleteViewing','tmResendApplyLink','tmCancelApplyForm','tmCreateGroup','tmAddToGroup','tmSetGroupArrival','tmSetAttendance','tmMoveGroupToViewing','tmSaveTribunalCheck','tmTribunalSearch','tmGetProgress','tmSaveAgreementSettings','tmSendAgreement','tmRefreshAgreement','tmCancelAgreement',
+ 'tmSaveProperty','tmSetPropertyActive','tmSaveLandlord','tmDeleteLandlord','tmSaveTenancy','tmDeleteTenancy','tmCreateTenancyFromGroup',
+ 'tmRecordBondPayment','tmDeleteBondPayment','tmSendBondReceipt','tmMarkBondLodged','tmSetBondNumber','tmSetBondMethod',
  'tmPreviewAgreement','tmResendAgreementLink','tmChangeTenants','tmRefreshTenancyChange','tmCancelTenancyChange','tmResendChangeLink','tmSetBondTask','tmTenancySummary','tmSaveTermsMaster','tmCopyTermsToProperties','tmBodyCorporateFiles','tmUploadBodyCorporateRules','tmTenantProfile','tmSaveTenantProfile','tmGroupDeletePlan','tmDeleteGroup','tmSetAdminPin','tmSavePerson','tmMergePeople','tmAgreementProgress','tmChangeProgress','tmSaveMyProfile','tmTestCreateGroup','tmTestSendForms','tmTestFillForm','tmTestApprove','tmTestSendAgreement','tmTestSignNext','tmTestStartChange','tmTestNextName','tmTestFinish'].forEach(function(n){
   api[n]=function(){ var a=[].slice.call(arguments), t0=Date.now(), w=!TM_READS.test(n);
     if(w) S.saving=(S.saving||0)+1;   // a save in progress: leaving the page now could lose it
@@ -1026,7 +1026,7 @@ function signingOrder(key){
 }
 /* What stops the agreement going out, checked before the pop-up (the server checks again) */
 /* New agreements use the service chosen on the Setup tab; existing ones keep the service they were sent with */
-function esignOn(){ return (S.st&&S.st.agreementProvider)==='esign'; }
+function esignOn(){ return true; }   // DocHub is retired: agreements always use built-in signing
 function isEsign(ag){ return !!ag && ag.provider==='esign'; }
 /* Property statements built-in agreements need that are still blank */
 function agreementProblem(key,landlordName){
@@ -1281,11 +1281,6 @@ function setupHome(){
   h+='<div class="card tap" data-act="admin-pin"><div class="row"><div class="tile t1">\uD83D\uDD12</div><div class="grow"><div class="title">Admin PIN</div>'+
     '<div class="small muted">Needed to delete a group with submitted forms, a signed agreement or a tenancy</div>'+
     '<div style="margin-block-start:6px"><span class="pill '+(pinOn?'st-done':'st-warn')+'">'+(pinOn?'Set':'Not set')+'</span></div></div><span class="chev">\u203A</span></div></div>';
-  var prov=(S.st&&S.st.agreementProvider)==='esign';
-  h+='<div class="card'+(HAS_GAS?'':' tap')+'"'+(HAS_GAS?'':' data-act="demo-provider"')+'><div class="row"><div class="tile t3">\u270d</div><div class="grow"><div class="title">Agreement signing</div>'+
-    '<div style="margin-block:4px"><span class="pill '+(prov?'st-done':'')+'">'+(prov?'Built-in':'DocHub')+'</span></div>'+
-    '<div class="small muted">New agreements go out through '+(prov?'the built-in signing service':'DocHub')+'. Agreements already sent keep using the service they were sent with. '+
-    (HAS_GAS?'Change it on the Setup tab of the Register sheet (\u201cAgreement signing\u201d).':'Demo: tap to switch.')+'</div></div></div></div>';
   if(S.st&&S.st.propertiesError) h+='<div class="card err">Couldn\u2019t open the shared property list: '+esc(S.st.propertiesError)+'</div>';
   $('#app').innerHTML=h+versionLine();
   setFooter(tabBar());
@@ -2556,7 +2551,7 @@ function refListHtml(r){
       '<div style="text-align:end"><div class="small" style="font-weight:700">'+esc(c.status)+'</div>'+(c.outcome?'<div class="small" style="color:'+(concern?'var(--bad)':c.outcome==='Positive'?'var(--ok)':'var(--muted)')+';font-weight:700">'+esc(c.outcome)+'</div>':'')+'</div><span class="chev">\u203A</span></div>';
   });
   h+='<div class="row wrap" style="margin-block-start:12px"><button class="btn sm ghost" type="button" data-act="add-contact" data-id="'+esc(ref)+'">\uFF0B Add a reference</button>'+
-    (r.app.srid?'<button class="btn sm" type="button" data-act="reimport" data-id="'+esc(ref)+'">\u21BB Re-import from form</button>':'')+'</div>';
+    '</div>';
   return h;
 }
 
@@ -3211,7 +3206,7 @@ document.addEventListener('click',function(e){
   if(act==='show-progress') return progressDialog(appByRef(id));
   if(act==='agreement-settings'){ S.pe=null; S.peTabNext='terms'; return go('propEdit',id); }
   // Setup: properties
-  if(act==='demo-provider') return api.tmDemoSetProvider().then(function(st){ apply(st); toast('Demo: agreements now use '+(st.agreementProvider==='esign'?'built-in signing':'DocHub')); render(); });
+
   if(act==='setup-props') return go('setupProps');
   if(act==='setup-landlords') return go('setupLandlords');
   if(act==='setup-terms'){ S.tmE=null; return go('setupTerms'); }
@@ -3242,9 +3237,7 @@ document.addEventListener('click',function(e){
   if(act==='ed-down'){ var di=+id, DA=S.pe.areas; if(di<DA.length-1){ DA.splice(di+1,0,DA.splice(di,1)[0]); render(); } return; }
   if(act==='prop-edit'){ S.pe=null; S.peQ=null; return go('propEdit',id); }
   if(act==='pe-search') return peSearch();
-  if(act==='pe-use'){ S.pe.templateId=id; S.pe.templateTitle=t.getAttribute('data-title'); S.peResults=null; S.peCheck=null; peRedrawAgreement(); toast('Template chosen \u2014 tap Save property'); return; }
-  if(act==='pe-clear'){ S.pe.templateId=''; S.pe.templateTitle=''; S.peCheck=null; peRedrawAgreement(); return; }
-  if(act==='pe-check') return busy(t,'Checking',api.tmCheckTemplate(S.pe.templateId)).then(function(r){ S.peCheck=r; if(r.title&&r.title!=='(untitled)') S.pe.templateTitle=r.title; peRedrawAgreement(); }).catch(function(x){ toast(x&&x.message||'Couldn\u2019t check the template',5000); });
+
   if(act==='pe-tab'){ S.peTab=id; render(); window.scrollTo(0,0); return; }
   if(act==='room-add'&&S.pe){ S.pe.rooms=S.pe.rooms||[]; S.pe.rooms.push({name:nextRoomName(S.pe.rooms),rent:S.pe.rent,bond:S.pe.bond!==''&&S.pe.bond!=null?S.pe.bond:bond4(S.pe.rent),maxOccupants:1});
     return peUtilRedraw('[data-pe-room="'+(S.pe.rooms.length-1)+'.name"]'); }
@@ -3351,7 +3344,7 @@ document.addEventListener('click',function(e){
   }
   if(act==='refresh'){
     // Online forms update the sheet the moment they're opened or submitted, so a refresh just reloads them;
-    // DocHub forms are checked with DocHub. The message reports what changed across both.
+    // the message reports what changed.
     var before={}; apps().forEach(function(a){ before[a.ref]=a.status; });
     return busy(t,'Checking',api.tmRefresh([])).then(function(r){
       apply(r.state); S.refs={};
@@ -3367,7 +3360,6 @@ document.addEventListener('click',function(e){
       if(opened) bits.push(opened+' opened');
       var msg=bits.length? bits.join(' \u00b7 ') : 'Up to date';
       msg+=out? ' \u2014 '+out+' form'+(out>1?'s':'')+' still out' : (bits.length?'':' \u2014 no forms waiting');
-      if(bad.length) msg+='. DocHub check failed for '+bad.length+': '+bad[0].error;
       toast(msg, bad.length?6000:3000); render();
     }).catch(function(){});
   }
@@ -3405,7 +3397,7 @@ document.addEventListener('click',function(e){
   }
   if(act==='ref') return go('ref',{ref:t.getAttribute('data-ref'),slot:id});
   if(act==='add-contact') return addContactDialog(id);
-  if(act==='reimport') return busy(t,'Importing',api.tmReimportReferences(id)).then(function(r){ S.refs[id]=r; toast('References re-imported'); render(); }).catch(function(){});
+
   if(act==='email-ref') return emailRefDialog();
   if(act==='qset'){ S.form.set=id; [].forEach.call(t.parentNode.children,function(b){ b.classList.toggle('on',b===t); }); keepDraft(); drawQuestions(S.refs[S.form.ref]); return; }
   if(act==='save-ref'){
@@ -3558,7 +3550,7 @@ var Demo = {
     var sum={}; Object.keys(d.contacts).forEach(function(r){ var o=sum[r]={total:0,done:0,concerns:0,positive:0,neutral:0,none:false}; d.contacts[r].forEach(function(c){ if(c.slot==='None provided'){o.none=true;return;} o.total++; if(c.status==='Completed'||c.status==='Not required') o.done++; if(c.outcome==='Positive') o.positive++; if(c.outcome==='Neutral') o.neutral++; if(c.outcome==='Concern') o.concerns++; }); });
     return clone({appName:'Tenant Management',version:APP_VERSION+' (demo)',me:'demo@example.com',hosts:['Kelvin'],applyMode:true,smsTemplate:'Your application form for {{Property}} can be found here: {{Link}}',viewings:d.viewings.slice().sort(function(a,b){ return b.viewingAt.localeCompare(a.viewingAt); }),
       decisions:['Shortlisted','Approved','Declined','Withdrawn'],applications:d.applications.map(function(a){ var o=clone(a); o.refs=sum[a.ref]||null; return o; }),shared:Demo.shared(d),properties:Demo.props(d).filter(function(p){ return p.active; }),
-      setupProperties:Demo.props(d),landlords:Demo.landlords(d),tenancies:d.tenancies||[],bondPayments:d.bondPayments||[],holidays:Demo.holidays,agreementProvider:d.provider||'dochub',adminPinSet:!!d.pin,profile:d.profile||{email:'demo@example.com',name:'',mobile:'',phone:''},people:Demo.people(d),dataModel:2,
+      setupProperties:Demo.props(d),landlords:Demo.landlords(d),tenancies:d.tenancies||[],bondPayments:d.bondPayments||[],holidays:Demo.holidays,agreementProvider:'esign',adminPinSet:!!d.pin,profile:d.profile||{email:'demo@example.com',name:'',mobile:'',phone:''},people:Demo.people(d),dataModel:2,
       termsMaster:d.termsMaster||(d.termsMaster=['The tenant must not smoke anywhere inside the premises.','The tenant will mow the lawns at least fortnightly in summer.','Rubbish and recycling bins go out on the night before collection.'])});
   },
   props:function(d){

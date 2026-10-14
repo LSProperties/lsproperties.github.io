@@ -57,7 +57,15 @@
         return function () {
           var args = [].slice.call(arguments);
           call(APP, name, args).then(function (r) {
-            if (r && (name === 'getVersion' || name === 'tmGetVersion')) { r.url = location.origin + location.pathname; r.pageVersion = r.version; }
+            if (r && (name === 'getVersion' || name === 'tmGetVersion')) {
+              // "Is there a newer version?" means a newer page published on GitHub, not a newer server: the server is
+              // updated a minute or two before the pages, and offering an update in that gap reloads the same page.
+              r.url = location.origin + location.pathname;
+              return fetch('../version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (x) { return x.json(); }).then(function (v) {
+                if (v && v[APP]) { r.version = v[APP]; r.pageVersion = v[APP]; }
+                if (ok) ok(r);
+              }, function () { r.pageVersion = r.version; if (ok) ok(r); });
+            }
             if (ok) ok(r);
           }, function (e) { if (fail) fail(e); });
         };

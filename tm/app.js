@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.14.3';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.15.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -3962,18 +3962,28 @@ if(!HAS_GAS) $('#demoBanner').classList.remove('hidden');
 net();
 /* Start from what this phone loaded last time, then refresh from the server in the background. The screen is redrawn
    with the fresh data unless something is being typed. Only the very first open on a phone waits for the server. */
+/* Opened from a notification: #app=<ref> or #tenancy=<id> opens that record (once it's loaded; a new application may
+   only arrive with the refresh). */
+function openFromLink(){
+  var m=/^#(app|tenancy)=(.+)$/.exec(location.hash||''); if(!m||!S.st) return;
+  var id=decodeURIComponent(m[2]), ok=m[1]==='app'? appByRef(id) : tenancyById(id); if(!ok) return;
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(x){}
+  S.stack=[]; S.cur={view:'home'}; go(m[1],id);
+}
+window.addEventListener('hashchange',openFromLink);
 var saved=null; try{ saved=JSON.parse(localStorage.getItem('tm-cache')||'null'); }catch(x){}
 if(HAS_GAS && saved && saved.applications){
-  S.st=saved; S.cur={view:'home'}; render();
+  S.st=saved; S.cur={view:'home'}; render(); openFromLink();
   S.syncing=true; net();
   api.tmBootstrap().then(function(st){
     apply(st); S.syncing=false; net();
     var typing=/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName||'');
     if(!unsavedWork() && !typing && !document.querySelector('.modal')){ var y=window.scrollY; render(); setTimeout(function(){ window.scrollTo(0,y); },0); }
+    openFromLink();
     checkForUpdate(true);
   }).catch(function(){ S.syncing=false; net(); toast('Offline: showing what was last loaded',6000); });
 } else api.tmBootstrap().then(apply).catch(function(e){
   try{ S.st=JSON.parse(localStorage.getItem('tm-cache')||'null'); }catch(x){}
   toast(S.st? 'Offline \u2014 showing what was last loaded' : e.message, 6000);
-}).then(function(){ S.cur={view:'home'}; render(); checkForUpdate(true); });
+}).then(function(){ S.cur={view:'home'}; render(); openFromLink(); checkForUpdate(true); });
 })();

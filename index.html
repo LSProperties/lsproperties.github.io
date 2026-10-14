@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-title" content="Rentals"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="theme-color" content="#0f766e">
 <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png">
 <title>Rentals</title>
-<link rel="stylesheet" href="shell.css?v=2026.10.15-97c1cc5">
+<link rel="stylesheet" href="shell.css?v=2026.10.15-81b23af">
 </head><body>
 <header><h1>Rentals</h1><div class="small" id="who"></div></header>
 <main>
@@ -29,19 +29,20 @@
     <a class="tile" href="fi/"><span class="ico">&#x1F3E0;</span><span><b>Inspections</b><br><span class="small">Flat inspections, photos and reports</span></span></a>
     <a class="tile" href="tm/"><span class="ico">&#x1F465;</span><span><b>Tenancies</b><br><span class="small">Viewings, applicants, agreements and bonds</span></span></a>
     <details id="devBox"><summary>Signed-in devices</summary><div id="devices" class="small">Loading&hellip;</div></details>
-    <details id="pushBox"><summary>Notifications test</summary>
-      <p class="small" id="pushState">Checking&hellip;</p>
-      <div class="row"><button id="pushOn" type="button">Turn on notifications</button><button id="pushLocal" class="quiet" type="button" hidden>Show a test here</button></div>
-      <textarea id="pushSub" class="small" rows="4" readonly hidden style="width:100%;margin-top:8px"></textarea>
-      <div class="row"><button id="pushCopy" type="button" hidden>Copy subscription</button><button id="pushOff" class="quiet" type="button" hidden>Turn off</button></div>
+    <details id="pushBox"><summary>Notifications</summary>
+      <p class="small" id="pushState">Loading&hellip;</p>
+      <div class="row"><button id="pushOn" type="button" hidden>Turn on for this device</button><button id="pushTest" class="quiet" type="button" hidden>Send a test</button><button id="pushOff" class="quiet" type="button" hidden>Turn off for this device</button></div>
+      <p class="small" style="margin:12px 0 4px">Tell me when:</p>
+      <div id="pushPrefs"></div>
+      <p class="small" id="pushMsg" role="status"></p>
     </details>
     <button id="signout" class="quiet" type="button">Sign out of this phone</button>
     <p class="small" id="ver"></p>
   </section>
 </main>
-<script src="config.js?v=2026.10.15-97c1cc5"></script>
-<script src="api.js?v=2026.10.15-97c1cc5"></script>
-<script src="signin.js?v=2026.10.15-97c1cc5"></script>
-<script src="push.js?v=2026.10.15-97c1cc5"></script>
+<script src="config.js?v=2026.10.15-81b23af"></script>
+<script src="api.js?v=2026.10.15-81b23af"></script>
+<script src="signin.js?v=2026.10.15-81b23af"></script>
+<script src="push.js?v=2026.10.15-81b23af"></script>
 <script src="https://accounts.google.com/gsi/client" async></script>
 </body></html>

@@ -1,7 +1,7 @@
 /* Rentals app offline start. Pages and their files come from the network when there is signal (so updates show at
    once) and from this cache when there isn't. Calls to the API and Google are never cached. The cache name is stamped
    by build-app.js on every build. */
-var CACHE = 'rentals-2026.10.14-7ac6ddd';
+var CACHE = 'rentals-2026.10.14-bf73b81';
 var FILES = ['./', 'index.html', 'shell.css', 'signin.js', 'api.js', 'config.js', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png',
   'fi/', 'fi/index.html', 'fi/app.js', 'tm/', 'tm/index.html', 'tm/app.js'];
 self.addEventListener('install', function (e) {
@@ -14,7 +14,8 @@ self.addEventListener('activate', function (e) {
 self.addEventListener('fetch', function (e) {
   var u = new URL(e.request.url);
   if (e.request.method !== 'GET' || u.origin !== location.origin) return;
-  e.respondWith(fetch(e.request).then(function (r) {
+  // with signal, always ask GitHub whether the file changed (never the browser's 10-minute copy), so updates land
+  e.respondWith(fetch(new Request(e.request.url, { cache: 'no-cache', credentials: 'same-origin' })).then(function (r) {
     if (r.ok) { var copy = r.clone(); caches.open(CACHE).then(function (c) { c.put(e.request, copy); }); }
     return r;
   }).catch(function () {

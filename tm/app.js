@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.13.5';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.13.6';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -3341,7 +3341,16 @@ document.addEventListener('click',function(e){
   if(act==='refresh-agreement') return busy(t,'Checking',api.tmRefreshAgreement(id)).then(function(st){ apply(st); var g=groupLead(id), ag=(g&&g.agreement)||{};
     toast(ag.status==='Signed'?'Everyone has signed'+(ag.pdf?' \u2014 saved to Drive':''):'Agreement: '+(ag.signed||'0')+' signed'); render(); }).catch(function(){});
   if(act==='agreement-resend') return resendDialog('agreement',id,t.getAttribute('data-v'),t.getAttribute('data-who'),t.getAttribute('data-name'));   // not 'resend-link': that's the application form's Resend link
-  if(act==='clear-emailed') return ask('Clear the emailed flag for this reference? The emailed time is removed, so it shows as not emailed yet.','Clear').then(function(ok){ if(ok) markEmailSent(false); });
+  if(act==='clear-emailed') return ask('Clear the emailed flag for this reference? The emailed time is removed, so it shows as not emailed yet.','Clear').then(function(ok){
+    if(!ok) return;
+    // gone from the screen at once; saved in the background (put back, with a message, if the save fails)
+    var F=S.form, rr=F&&S.refs[F.ref], c=rr&&rr.contacts.find(function(x){ return x.slot===F.slot; }), was=c?c.emailSent:'';
+    if(!F) return;
+    if(c) c.emailSent='';
+    render(); toast('Email flag cleared');
+    api.tmMarkEmailSent(F.ref,F.slot,false).then(function(r){ S.refs[F.ref]=r; })
+      .catch(function(e){ if(c) c.emailSent=was; if(S.form===F && S.cur.view==='ref') render(); toast('The email flag wasn'+String.fromCharCode(8217)+'t cleared: '+e.message,6000); });
+  });
   if(act==='cancel-agreement') return ask('Cancel the agreement sent to <b>'+esc(groupName(id))+'</b>? '+(isEsign((groupLead(id)||{}).agreement)?'Anyone already sent a link will be told':'DocHub will tell the signers')+' it\u2019s been cancelled, and you can then send a new one.','Cancel agreement').then(function(ok){ if(!ok) return;
     return busy(t,'Cancelling',api.tmCancelAgreement(id)).then(function(st){ apply(st); toast('Agreement cancelled'); render(); }).catch(function(){}); });
   if(act==='copy-link'){ var la=appByRef(id); if(!la.applyLink){ toast('The online form address isn\u2019t set up (APPLY_URL)'); return; } copyText(la.applyLink,'Link copied \u2014 paste it into a text to '+la.name.split(' ')[0]); return; }

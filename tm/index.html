@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com; connect-src 'self' data: blob: https://script.google.com https://script.googleusercontent.com; frame-src 'self' data: blob:; media-src 'self' data: blob:; worker-src 'self'; base-uri 'none'; form-action 'none'">
 <link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="../icon-180.png">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -413,6 +414,7 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 .empty{text-align:center;padding:22px 16px;color:var(--muted)}
 .empty .big{font-size:2.2rem;line-height:1}
 </style>
+<style>/* Rentals app: header under the see-through status bar */ .bar{padding-block-start:max(14px,calc(env(safe-area-inset-top) + 8px))}</style>
 </head>
 <body>
 <header class="bar">
@@ -426,8 +428,8 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 <div id="footer" class="footer hidden"><div class="in" id="footerIn"></div></div>
 <div id="toast"></div>
 
-<script src="../config.js?v=2026.10.14-762c838"></script>
-<script src="../api.js?v=2026.10.14-762c838"></script>
-<script src="app.js?v=2026.10.14-762c838"></script>
+<script src="../config.js?v=2026.10.14-2e54b2f"></script>
+<script src="../api.js?v=2026.10.14-2e54b2f"></script>
+<script src="app.js?v=2026.10.14-2e54b2f"></script>
 </body>
 </html>

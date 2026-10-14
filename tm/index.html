@@ -202,7 +202,7 @@ input[type=checkbox]{accent-color:#7c3aed;width:18px;height:18px;vertical-align:
 .petabs button .ic{font-size:1.2rem}
 #toast{position:fixed;inset-inline:0;inset-block-end:100px;display:flex;justify-content:center;pointer-events:none;z-index:50}
 #toast span{background:var(--grad);color:#fff;font-weight:700;padding:12px 20px;border-radius:99px;max-width:90%;box-shadow:var(--shadow-lg);animation:toastin .4s cubic-bezier(.2,1.4,.4,1)}
-.modal{position:fixed;inset:0;background:var(--overlay);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:30;animation:fade .2s}
+.modal{position:fixed;inset:0;background:var(--overlay);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:30;animation:fade .2s;--mt:max(16px,calc(env(safe-area-inset-top) + 10px));--mb:max(16px,calc(env(safe-area-inset-bottom) + 10px));padding:var(--mt) 16px var(--mb)}   /* clear of the notch / island and the home bar */
 .modal .box{background:var(--surface);border-radius:24px;padding:20px;width:100%;max-width:420px;box-shadow:var(--shadow-lg);animation:pop .3s cubic-bezier(.2,1.4,.4,1);font-weight:600}
 .viewer{position:fixed;inset:0;background:rgba(5,3,20,.94);display:flex;align-items:center;justify-content:center;z-index:40;animation:fade .2s}
 .viewer img{max-width:100%;max-height:100%;border-radius:12px;animation:pop .3s}
@@ -395,7 +395,7 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 .sect.closed .sect-c{transform:rotate(-90deg)}
 .sect.closed .sect-b{display:none}
 .timeline .tl-d{display:block;font-weight:600;font-size:.68rem;opacity:.85;margin-block-start:1px}
-.modal .box{max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.modal .box{max-height:calc(100vh - var(--mt) - var(--mb));max-height:calc(100dvh - var(--mt) - var(--mb));overflow-y:auto;-webkit-overflow-scrolling:touch}
 /* Groups (people applying together) */
 .gpick{display:flex;gap:6px;overflow-x:auto;padding-block:2px 4px;margin-block-end:14px;scrollbar-width:none}
 .gpick::-webkit-scrollbar{display:none}
@@ -428,8 +428,8 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 <div id="footer" class="footer hidden"><div class="in" id="footerIn"></div></div>
 <div id="toast"></div>
 
-<script src="../config.js?v=2026.10.14-e550149"></script>
-<script src="../api.js?v=2026.10.14-e550149"></script>
-<script src="app.js?v=2026.10.14-e550149"></script>
+<script src="../config.js?v=2026.10.14-9af214f"></script>
+<script src="../api.js?v=2026.10.14-9af214f"></script>
+<script src="app.js?v=2026.10.14-9af214f"></script>
 </body>
 </html>

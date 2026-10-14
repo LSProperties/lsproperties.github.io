@@ -87,13 +87,18 @@
   /* A Home button in the page header, back to the Rentals home (devices, sign out, the other section). The pages' own
      leave warnings still apply, so nothing unsaved is lost by tapping it. */
   if (APP) {
-    var bar = document.querySelector('header.bar'), badge = document.getElementById('netBadge');
+    // the Lifestyle Investments mark (the app icon) on a white tile, just left of the page title
+    var bar = document.querySelector('header.bar'), title = document.getElementById('title');
     if (bar) {
       var home = document.createElement('a');
-      home.href = '../'; home.className = 'icon-btn'; home.setAttribute('aria-label', 'Rentals home'); home.title = 'Rentals home';
-      home.textContent = '⌂';
-      home.style.cssText = 'text-decoration:none;display:inline-flex;align-items:center;justify-content:center;font-size:1.25rem;margin-inline-start:8px;color:inherit';
-      if (badge && badge.parentNode === bar) bar.insertBefore(home, badge.nextSibling); else bar.appendChild(home);
+      home.href = '../'; home.setAttribute('aria-label', 'Rentals home'); home.title = 'Rentals home';
+      home.style.cssText = 'position:relative;flex:none;display:block;width:36px;height:36px;border-radius:10px;overflow:hidden;' +
+        'background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.18);line-height:0';
+      var logo = document.createElement('img');
+      logo.src = '../icon-180.png'; logo.alt = ''; logo.width = 36; logo.height = 36;
+      logo.style.cssText = 'display:block;width:36px;height:36px';
+      home.appendChild(logo);
+      if (title && title.parentNode === bar) bar.insertBefore(home, title); else bar.insertBefore(home, bar.firstChild);
     }
   }
 

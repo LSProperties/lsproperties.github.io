@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.14.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.14.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -41,11 +41,11 @@ function gas(fn){
 }
 var api = {};
 /* calls that only read: they don't hold the leave-page warning */
-var TM_READS = /^tm(Bootstrap|Refresh|GetVersion|GetReferences|CreditDetails|ScreeningQuestions|TribunalSearch|GetProgress|AgreementSearch|AgreementFields|CheckTemplate|PreviewAgreement|TenancySummary|BodyCorporateFiles|TenantProfile|GroupDeletePlan|AgreementProgress|ChangeProgress|RefreshAgreement|RefreshTenancyChange)$/;
+var TM_READS = /^tm(Bootstrap|Refresh|GetVersion|GetReferences|CreditDetails|PhotoIdFile|ScreeningQuestions|TribunalSearch|GetProgress|AgreementSearch|AgreementFields|CheckTemplate|PreviewAgreement|TenancySummary|BodyCorporateFiles|TenantProfile|GroupDeletePlan|AgreementProgress|ChangeProgress|RefreshAgreement|RefreshTenancyChange)$/;
 /* Speed check: the last 40 calls (in memory only) */
 function speedNote(fn,ms,timing,ok){ S.speed=S.speed||[]; S.speed.unshift({fn:fn,ms:ms,server:timing?timing.serverMs:null,parts:timing?timing.parts:null,ok:ok,at:new Date().toISOString()}); S.speed=S.speed.slice(0,40); }
 ['tmBootstrap','tmSaveViewing','tmSetViewingStatus','tmSaveAttendee','tmRemoveAttendee','tmSendApplications','tmRefresh',
- 'tmUpdateApplication','tmGetReferences','tmCreditDetails','tmScreeningQuestions','tmSaveScreeningQuestions','tmSaveReferenceCheck','tmAddContact','tmMarkEmailSent','tmGetVersion','tmSetGroup','tmDetachFromViewing','tmDeleteViewing','tmResendApplyLink','tmCancelApplyForm','tmCreateGroup','tmAddToGroup','tmSetGroupArrival','tmSetAttendance','tmMoveGroupToViewing','tmSaveTribunalCheck','tmTribunalSearch','tmGetProgress','tmSaveAgreementSettings','tmSendAgreement','tmRefreshAgreement','tmCancelAgreement',
+ 'tmUpdateApplication','tmGetReferences','tmCreditDetails','tmPhotoIdFile','tmScreeningQuestions','tmSaveScreeningQuestions','tmSaveReferenceCheck','tmAddContact','tmMarkEmailSent','tmGetVersion','tmSetGroup','tmDetachFromViewing','tmDeleteViewing','tmResendApplyLink','tmCancelApplyForm','tmCreateGroup','tmAddToGroup','tmSetGroupArrival','tmSetAttendance','tmMoveGroupToViewing','tmSaveTribunalCheck','tmTribunalSearch','tmGetProgress','tmSaveAgreementSettings','tmSendAgreement','tmRefreshAgreement','tmCancelAgreement',
  'tmSaveProperty','tmSetPropertyActive','tmSaveLandlord','tmDeleteLandlord','tmSaveTenancy','tmDeleteTenancy','tmCreateTenancyFromGroup',
  'tmRecordBondPayment','tmDeleteBondPayment','tmSendBondReceipt','tmMarkBondLodged','tmSetBondNumber','tmSetBondMethod',
  'tmPreviewAgreement','tmResendAgreementLink','tmChangeTenants','tmRefreshTenancyChange','tmCancelTenancyChange','tmResendChangeLink','tmSetBondTask','tmTenancySummary','tmSaveTermsMaster','tmCopyTermsToProperties','tmBodyCorporateFiles','tmUploadBodyCorporateRules','tmTenantProfile','tmSaveTenantProfile','tmGroupDeletePlan','tmDeleteGroup','tmSetAdminPin','tmSavePerson','tmMergePeople','tmAgreementProgress','tmChangeProgress','tmSaveMyProfile','tmTestCreateGroup','tmTestSendForms','tmTestFillForm','tmTestApprove','tmTestSendAgreement','tmTestSignNext','tmTestStartChange','tmTestNextName','tmTestFinish'].forEach(function(n){
@@ -2594,9 +2594,27 @@ function centrixData(c){
 /* Quick links to the photo ID uploaded on the online form (else the uploads folder) */
 function photoIdHtml(c){
   var list=c.photoId||[];
-  if(list.length) return list.map(function(f,i){ return '<a class="btn sm ghost" target="_blank" rel="noopener" href="'+esc(f.url)+'" title="'+esc(f.name)+'">\uD83E\uDEAA Photo ID'+(list.length>1?' '+(i+1):'')+'</a>'; }).join('');
+  if(list.length) return list.map(function(f,i){ return '<button class="btn sm ghost" type="button" data-act="photo-id" data-id="'+esc(c.ref)+'" data-i="'+i+'" data-n="'+esc(f.name)+'" title="'+esc(f.name)+'">\uD83E\uDEAA Photo ID'+(list.length>1?' '+(i+1):'')+'</button>'; }).join('');
   if(c.uploadsFolder) return '<a class="btn sm ghost" target="_blank" rel="noopener" href="'+esc(c.uploadsFolder)+'">\uD83D\uDCC1 Uploaded files</a>';
   return '<span class="small muted">No photo ID was uploaded with this application.</span>';
+}
+/* The photo ID shown in the app (fetched by the server), so it opens for everyone using the app, not only the Drive owner */
+function photoIdView(ref,i,name){
+  var m=modal('<div class="row" style="gap:8px"><b class="grow" style="overflow-wrap:anywhere">'+esc(name||'Photo ID')+'</b><button class="btn sm" type="button" data-x>Close</button></div>'+
+    '<div id="piBody" style="margin-block-start:12px;text-align:center"><div class="row" style="justify-content:center;gap:8px;padding:30px 0"><span class="spin"></span><span class="muted">Loading the photo\u2026</span></div></div>'), url='';
+  $('.box',m).classList.add('wide');
+  function close(){ m.remove(); if(url) URL.revokeObjectURL(url); }
+  m.addEventListener('click',function(e){ if(e.target===m||e.target.closest('[data-x]')) close(); });
+  api.tmPhotoIdFile(ref,i).then(function(r){
+    var bin=atob(r.data), u8=new Uint8Array(bin.length); for(var k=0;k<bin.length;k++) u8[k]=bin.charCodeAt(k);
+    url=URL.createObjectURL(new Blob([u8],{type:r.mime}));
+    var save='<a class="btn sm" href="'+url+'" download="'+esc(r.name)+'">Save a copy</a>', box=$('#piBody',m); if(!box) return;
+    if(/^image\//.test(r.mime)){
+      box.innerHTML='<img alt="Photo ID" src="'+url+'" style="max-width:100%;max-height:72vh;border-radius:12px;display:block;margin:0 auto">'+'<div style="margin-block-start:10px">'+save+'</div>';
+      $('img',box).addEventListener('error',function(){ box.innerHTML='<div class="small muted" style="margin-block-end:10px">This browser can\u2019t show this kind of picture ('+esc(r.mime)+'). Save a copy to open it.</div>'+save; });
+    } else if(r.mime==='application/pdf') box.innerHTML='<iframe title="Photo ID" src="'+url+'" style="width:100%;height:72vh;border:0;border-radius:12px"></iframe><div style="margin-block-start:10px">'+save+'</div>';
+    else box.innerHTML='<div class="small muted" style="margin-block-end:10px">This file can\u2019t be shown here.</div>'+save;
+  }).catch(function(x){ var box=$('#piBody',m); if(box) box.innerHTML='<div class="err">'+esc(x&&x.message||'Couldn\u2019t load the photo')+'</div>'; });
 }
 function centrixText(c){ return 'CENTRIX-FILL '+JSON.stringify(centrixData(c)); }
 /* What will be filled, and what's missing (Centrix needs name, date of birth and an address) */
@@ -3281,6 +3299,7 @@ document.addEventListener('click',function(e){
   if(act==='agreement-settings'){ S.pe=null; S.peTabNext='terms'; return go('propEdit',id); }
   // Setup: properties
 
+  if(act==='photo-id') return photoIdView(id,+t.getAttribute('data-i'),t.getAttribute('data-n'));
   if(act==='setup-props') return go('setupProps');
   if(act==='setup-landlords') return go('setupLandlords');
   if(act==='setup-questions'){ S.qsE=null; return go('setupQuestions'); }
@@ -3895,6 +3914,7 @@ var Demo = {
       case 'tmGetReferences': return done(Demo.refs(d,a[0]));
       case 'tmScreeningQuestions': return done({sets:JSON.parse(JSON.stringify(d.questions)),legacy:false});
       case 'tmSaveScreeningQuestions': d.questions=a[0].map(function(q,i){ return {id:q.id||('QS-n'+i),name:q.name.trim(),note:q.note||'',flags:q.kind==='Red flags',usedFor:q.kind==='Red flags'?[]:q.usedFor.slice(),items:q.items.map(function(x){ return String(x).trim(); }).filter(String)}; }); return done({sets:JSON.parse(JSON.stringify(d.questions)),legacy:false});
+      case 'tmPhotoIdFile': return done({name:'licence.svg',mime:'image/svg+xml',data:btoa('<svg xmlns="http://www.w3.org/2000/svg" width="540" height="340"><rect width="540" height="340" rx="24" fill="#e8f4ee"/><text x="40" y="80" font-size="34" font-family="sans-serif">DEMO DRIVER LICENCE</text><rect x="40" y="120" width="140" height="170" fill="#bbb"/></svg>')});
       case 'tmCreditDetails': var ca=d.applications.find(function(x){return x.ref===a[0];})||{};
         return done({ref:a[0],name:ca.name||'',dob:'1998-04-07',email:ca.email||'',licenceNumber:'AB123456',licenceVersion:'123',
           address:'12 Smith Street, Mornington, Dunedin 9011',howLong:'2 years 3 months',prevAddress:'Flat 2, 45 Queen Street, North Dunedin, Dunedin 9016',prevHowLong:'18 months',photoId:[{name:'licence.jpg',url:'https://example.com/licence.jpg'}],uploadsFolder:''});

@@ -227,6 +227,16 @@ input[type=checkbox]{accent-color:#7c3aed;width:18px;height:18px;vertical-align:
 @keyframes toastin{from{opacity:0;transform:translateY(20px) scale(.9)}}
 @keyframes fall{to{transform:translate3d(var(--dx),110vh,0) rotate(var(--rot));opacity:.9}}
 @media (prefers-reduced-motion: reduce){ *,*::before,*::after{animation:none!important;transition:none!important} }
+/* bottom tabs (1.18.0) */
+.tabbar{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;width:100%}
+.tabbar button{position:relative;border:0;background:transparent;border-radius:16px;min-height:56px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:.72rem;font-weight:750;color:var(--muted);cursor:pointer;min-width:0}
+.tabbar button .ic{font-size:1.35rem;line-height:1}
+.tabbar button.on{background:var(--brand-soft);color:var(--brand)}
+@media (prefers-color-scheme: dark){ .tabbar button.on{color:#c4b5fd} }
+.tabbar button .n{position:absolute;inset-block-start:4px;inset-inline-end:calc(50% - 26px);min-width:18px;height:18px;border-radius:9px;padding:0 5px;background:var(--bad);color:#fff;font-size:.68rem;font-weight:800;display:grid;place-items:center}
+.ro-badge{display:inline-block;font-size:.72rem;font-weight:800;letter-spacing:.02em;padding:3px 9px;border-radius:99px;background:var(--chip);color:var(--muted)}
+.ro-item{padding:10px 0;border-block-start:1px solid var(--line)}.ro-item:first-child{border-block-start:0}
+.ro-thumbs{display:flex;flex-wrap:wrap;gap:6px;margin-block-start:6px}.ro-thumbs img{width:72px;height:72px;object-fit:cover;border-radius:10px;background:var(--chip)}
 </style>
 <style>/* Rentals app: header under the see-through status bar; its content starts 20px lower, below the band iOS softens under the status bar */ .bar{padding-block-start:max(14px,calc(env(safe-area-inset-top) + 20px))}</style>
 </head>
@@ -245,8 +255,8 @@ input[type=checkbox]{accent-color:#7c3aed;width:18px;height:18px;vertical-align:
 <input type="file" id="camInput" accept="image/*" capture="environment" class="hidden">
 <input type="file" id="galInput" accept="image/*" multiple class="hidden">
 
-<script src="../config.js?v=2026.10.14-eb8369e"></script>
-<script src="../api.js?v=2026.10.14-eb8369e"></script>
-<script src="app.js?v=2026.10.14-eb8369e"></script>
+<script src="../config.js?v=2026.10.14-0a75307"></script>
+<script src="../api.js?v=2026.10.14-0a75307"></script>
+<script src="app.js?v=2026.10.14-0a75307"></script>
 </body>
 </html>

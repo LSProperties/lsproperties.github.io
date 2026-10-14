@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.17.5';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.18.0';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -96,6 +96,13 @@ var api = {
   submitInspection:function(payload,pin){ return HAS_GAS? gas('submitInspection',payload,pin||'') : Demo.wait({reportUrl:'',folderUrl:'',sheetUrl:''}); },
   backup:function(p){ return HAS_GAS? gas('backupInspection',p) : Demo.wait({ok:true,savedAt:nowIso()}); },
   openInProgress:function(id){ return HAS_GAS? gas('openInProgress',id) : Promise.reject(new Error('Reopening from the online copy needs the Google backend.')); },
+  getInspection:function(ref){
+    if(HAS_GAS) return gas('getInspection',ref);
+    var p=Demo.load()[0];
+    return Demo.wait({id:ref.id,propertyId:p.id,propertyName:p.name,address:p.address||'',type:'Routine',inspector:'Demo',tenant:'',startedAt:nowIso(),submittedAt:nowIso(),
+      overallNotes:'Demo inspection.',reportUrl:'',folderUrl:'',areas:p.areas.map(function(a,ai){ return {name:a.name,type:a.type,notes:'',photos:[],
+        items:(a.items||[]).map(function(l,i){ var bad=(ai+i)%7===3; return {label:l,status:bad?'clean':'ok',note:bad?'Needs a wipe down':'',action:bad?'tenant':null,photos:[]}; })}; })});
+  },
   openForEdit:function(pin,ref){ return HAS_GAS? gas('openInspectionForEdit',pin,ref) : Promise.reject(new Error('Editing submitted inspections needs the Google backend.')); }
 };
 
@@ -187,6 +194,16 @@ try{ S.history=JSON.parse(localStorage.getItem('fi-history')||'[]'); }catch(e){}
 S.recent=null; S.me=''; S.recentShow=10;
 try{ var rc=JSON.parse(localStorage.getItem('fi-recent-cache')||'null'); if(rc){ S.recent=rc.items; S.me=rc.me||''; } }catch(e){}
 S.recentFilter=localStorage.getItem('fi-recent-filter')||'all';
+S.tab=null;   // 'new' | 'progress' | 'submitted' | 'setup'; chosen on first show (In progress if anything is)
+/* Submitted inspections opened read-only are kept on this phone (the last 15), so they open at once and offline */
+function viewCacheGet(id){ try{ var c=JSON.parse(localStorage.getItem('fi-view-cache')||'{}'); return c[id]? c[id].d : null; }catch(e){ return null; } }
+function viewCachePut(id,d){
+  var c={}; try{ c=JSON.parse(localStorage.getItem('fi-view-cache')||'{}'); }catch(e){}
+  c[id]={d:d,at:Date.now()};
+  var keys=Object.keys(c).sort(function(a,b){ return c[b].at-c[a].at; }); keys.slice(15).forEach(function(k){ delete c[k]; });
+  store('fi-view-cache',c);
+}
+function viewCacheDrop(id){ try{ var c=JSON.parse(localStorage.getItem('fi-view-cache')||'{}'); delete c[id]; store('fi-view-cache',c); }catch(e){} }
 S.inProgress=null; try{ S.inProgress=JSON.parse(localStorage.getItem('fi-inprogress-cache')||'null'); }catch(e){}
 function store(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){ try{ localStorage.removeItem(k); }catch(x){} } }
 function setInProgress(list){ S.inProgress=list; store('fi-inprogress-cache',list); }
@@ -451,7 +468,7 @@ function deleteInspDialog(rec){
       S.history=S.history.filter(keep); try{ localStorage.setItem('fi-history',JSON.stringify(S.history)); }catch(e){}
       if(S.recent){ S.recent=S.recent.filter(keep); saveRecent(); }
       if(r && r.propertyId) try{ localStorage.removeItem('fi-prior-'+r.propertyId); }catch(e){}
-      m.remove(); render(); toast('🗑 Inspection deleted',3000); buzz(20);
+      m.remove(); viewCacheDrop(id); if(S.cur.view==='viewInsp'||S.cur.view==='viewArea'){ S.stack=[]; S.cur={view:'home'}; S.tab='submitted'; } render(); toast('🗑 Inspection deleted',3000); buzz(20);
     }).catch(function(e2){ b.disabled=false; b.textContent='Delete'; err.textContent=e2.message; });
   });
 }
@@ -725,70 +742,147 @@ function attachPrior(d,pr){
 var VIEWS = {};
 
 VIEWS.home = function(){
-  setTitle('Flat Inspections');
   return DB.all('drafts').then(function(drafts){
     drafts=(drafts||[]).sort(function(a,b){ return (b.updatedAt||'').localeCompare(a.updatedAt||''); });
     var localIds={}; drafts.forEach(function(d){ localIds[d.id]=1; });
-    var remote=remoteInProgress(localIds);
+    var remote=remoteInProgress(localIds), nProg=drafts.length+remote.length;
     if(drafts.length) setTimeout(function(){ Backup.all(); checkForUpdate(); },500);
-    var h='', hr=new Date().getHours(), greet=hr<12?'Good morning':hr<18?'Good afternoon':'Good evening';
-    var nIss=S.history.slice(0,10).reduce(function(t,x){return t+(x.issues||0);},0);
-    h+='<div class="card hero"><div class="small" style="position:relative;z-index:1">'+greet+(localStorage.getItem('fi-inspector')?', '+esc(localStorage.getItem('fi-inspector').split(' ')[0]):'')+' 👋</div>'+
-      '<div class="big" style="position:relative;z-index:1">Ready to inspect?</div>'+
-      '<div class="stats"><div class="stat"><b>'+S.props.length+'</b><span>Properties</span></div><div class="stat"><b>'+(drafts.length+remote.length)+'</b><span>In progress</span></div><div class="stat"><b>'+recentFiltered().length+'</b><span>Submitted</span></div></div></div>';
-    if(drafts.length||remote.length){
-      h+='<h2>In progress</h2>';
-      remote.forEach(function(x){ var pct=x.total?Math.round(x.checked*100/x.total):0;
-        h+='<div class="card"><div class="row"><div class="ring" style="--p:'+pct+'"><b>'+(x.total?pct+'%':'☁')+'</b></div><div class="grow tap" data-act="recover" data-id="'+esc(x.id)+'"><div class="title">'+esc(x.propertyName)+'</div>'+
-          '<div style="margin-block-start:2px"><span class="pill">☁ Saved online'+(x.savedAt?' '+esc(new Date(x.savedAt).toLocaleTimeString('en-NZ',{hour:'numeric',minute:'2-digit'})):'')+(recMine(x)?' · you':x.inspector?' · '+esc(x.inspector):'')+'</span></div>'+
-          '<div class="small muted">'+esc(x.type)+' · started '+esc(fmt(x.startedAt))+'</div>'+
-          '<div class="small muted" style="margin-block-start:4px">'+(x.total?x.checked+'/'+x.total+' checked · '+x.issues+' issues · ':'')+x.photos+' photo'+(x.photos===1?'':'s')+' uploaded · tap to open</div></div>'+
-          '<button class="btn sm danger" data-act="discard-remote" data-id="'+esc(x.id)+'" type="button">Delete</button></div></div>';
-      });
-      drafts.forEach(function(d){ var s=stats(d);
-        h+='<div class="card"><div class="row"><div class="ring'+(s.pct===100?' full':'')+'" style="--p:'+s.pct+'"><b>'+s.pct+'%</b></div><div class="grow tap" data-act="resume" data-id="'+esc(d.id)+'"><div class="title">'+esc(d.propertyName)+'</div>'+
-        (d.edit?'<div style="margin-block-start:2px"><span class="pill prior-pill">✎ Editing submitted inspection</span></div>':'')+
-        '<div class="small muted">'+esc(d.type)+' · started '+esc(fmt(d.startedAt))+'</div>'+
-        '<div class="progress" style="margin-block-start:8px"><i style="inline-size:'+s.pct+'%"></i></div>'+
-        '<div class="small muted" style="margin-block-start:4px">'+s.done+'/'+s.total+' checked · '+s.issues+' issues · '+s.photos+' photos</div></div>'+
-        '<button class="btn sm danger" data-act="discard" data-id="'+esc(d.id)+'" type="button">Delete</button></div></div>';
-      });
-    }
-    h+='<h2>Start a new inspection</h2>';
-    h+='<input type="search" id="propSearch" placeholder="Search properties…" style="margin-block-end:10px">';
-    h+='<div id="propList">'+propListHtml('')+'</div>';
-    var all=recentList(), rl=recentFiltered();
-    if(all.length){
-      h+='<div class="row" style="margin:24px 6px 10px"><h2 class="grow" style="margin:0">Recently submitted</h2>'+
-        '<div class="row" style="gap:4px;background:var(--chip);padding:3px;border-radius:99px">'+
-        ['all','mine'].map(function(f){ var on=S.recentFilter===f; return '<button type="button" class="btn sm'+(on?' primary':'')+'" data-act="recent-filter" data-id="'+f+'" style="min-height:32px;border:0;border-radius:99px;box-shadow:none;'+(on?'':'background:transparent')+'">'+(f==='all'?'Everyone':'Mine')+'</button>'; }).join('')+'</div></div>';
-      if(!rl.length) h+='<div class="card small muted">You haven’t submitted any inspections yet. Switch to “Everyone” to see the team’s.</div>';
-      rl.slice(0,S.recentShow).forEach(function(x){
-        var who=x.mine?'You':(x.inspector||'');
-        h+='<div class="card small"><div class="row" style="align-items:flex-start"><div class="title grow">'+esc(x.propertyName)+'</div>'+
-          (x.id&&HAS_GAS?'<button type="button" class="trash pencil" data-act="edit-insp" data-id="'+esc(x.id)+'" aria-label="Edit inspection" title="Edit inspection (admin PIN)">✏️</button>':'')+
-          '<button type="button" class="trash" data-act="del-insp" data-id="'+esc(x.id||'')+'" data-f="'+esc(x.folderUrl||'')+'" aria-label="Delete inspection" title="Delete inspection">🗑</button></div>'+
-          '<div class="muted">'+esc(x.type)+' · '+esc(fmt(x.submittedAt))+'</div>'+
-          '<div style="margin-block-start:6px">'+(who?'<span class="pill">👤 '+esc(who)+'</span>':'')+'<span class="pill'+(x.issues?' issue':' done')+'">'+(x.issues||0)+' issues</span>'+(x.photos?'<span class="pill">📷 '+x.photos+'</span>':'')+'</div>'+
-          '<div class="row wrap" style="margin-block-start:10px">'+((x.id||x.folderUrl||x.reportUrl)&&HAS_GAS?'<button class="btn sm ghost" type="button" data-act="email" data-id="'+esc(x.id||'')+'" data-f="'+esc(x.folderUrl||'')+'">✉ Email Full Report</button>':'')+
-            (x.id&&x.tenantIssues&&HAS_GAS?'<button class="btn sm ghost" type="button" data-act="email-tenant" data-id="'+esc(x.id)+'">🧑 Email Tenant Issues ('+x.tenantIssues+')</button>':'')+(x.reportUrl?'<a class="btn sm" target="_blank" rel="noopener" href="'+esc(x.reportUrl)+'">Report</a>':'')+(x.folderUrl?'<a class="btn sm" target="_blank" rel="noopener" href="'+esc(x.folderUrl)+'">Drive folder</a>':'')+'</div></div>';
-      });
-      if(rl.length>S.recentShow) h+='<button class="btn block dashed" type="button" data-act="recent-more">Show more ('+(rl.length-S.recentShow)+')</button>';
-      if(HAS_GAS && S.recentOffline) h+='<div class="small muted" style="text-align:center;margin-block-start:6px">Offline — showing the list saved on this device.</div>';
-    }
-    h+='<div class="small muted" style="text-align:center;margin-block-start:18px">App version '+APP_VERSION+(S.serverVersion?' · backend '+esc(S.serverVersion):'')+(HAS_GAS?'':' · demo')+'</div>';   // (Storage check and the check-for-updates link removed in 1.17.5; updates are still checked automatically)
+    if(!S.tab) S.tab=nProg?'progress':'new';
+    setTitle({'new':'New inspection',progress:'In progress',submitted:'Submitted',setup:'Setup'}[S.tab]);
+    var h= S.tab==='progress'? progressTabHtml(drafts,remote) : S.tab==='submitted'? submittedTabHtml() : S.tab==='setup'? setupTabHtml() : newTabHtml();
     $('#app').innerHTML=h;
-    setFooter('<button class="btn" data-act="refresh" type="button">↻ Refresh</button><button class="btn" data-act="admin" type="button">⚙ Manage properties</button>');
+    setFooter(tabBar(nProg));
   });
+};
+function tabBar(nProg){
+  function b(id,ic,label,n){ return '<button type="button" data-act="tab" data-id="'+id+'" class="'+(S.tab===id?'on':'')+'"><span class="ic">'+ic+'</span>'+label+(n?'<span class="n">'+n+'</span>':'')+'</button>'; }
+  return '<div class="tabbar">'+b('new','＋','New')+b('progress','⏳','In progress',nProg)+b('submitted','✅','Submitted')+b('setup','⚙','Setup')+'</div>';
+}
+function newTabHtml(){
+  return '<input type="search" id="propSearch" placeholder="Search properties…" style="margin-block-end:10px"><div id="propList">'+propListHtml('')+'</div>';
+}
+function progressTabHtml(drafts,remote){
+  var h='';
+  remote.forEach(function(x){ var pct=x.total?Math.round(x.checked*100/x.total):0;
+    h+='<div class="card"><div class="row"><div class="ring" style="--p:'+pct+'"><b>'+(x.total?pct+'%':'☁')+'</b></div><div class="grow tap" data-act="recover" data-id="'+esc(x.id)+'"><div class="title">'+esc(x.propertyName)+'</div>'+
+      '<div style="margin-block-start:2px"><span class="pill">☁ Saved online'+(x.savedAt?' '+esc(new Date(x.savedAt).toLocaleTimeString('en-NZ',{hour:'numeric',minute:'2-digit'})):'')+(recMine(x)?' · you':x.inspector?' · '+esc(x.inspector):'')+'</span></div>'+
+      '<div class="small muted">'+esc(x.type)+' · started '+esc(fmt(x.startedAt))+'</div>'+
+      '<div class="small muted" style="margin-block-start:4px">'+(x.total?x.checked+'/'+x.total+' checked · '+x.issues+' issues · ':'')+x.photos+' photo'+(x.photos===1?'':'s')+' uploaded · tap to open</div></div>'+
+      '<button class="btn sm danger" data-act="discard-remote" data-id="'+esc(x.id)+'" type="button">Delete</button></div></div>';
+  });
+  drafts.forEach(function(d){ var s=stats(d);
+    h+='<div class="card"><div class="row"><div class="ring'+(s.pct===100?' full':'')+'" style="--p:'+s.pct+'"><b>'+s.pct+'%</b></div><div class="grow tap" data-act="resume" data-id="'+esc(d.id)+'"><div class="title">'+esc(d.propertyName)+'</div>'+
+      (d.edit?'<div style="margin-block-start:2px"><span class="pill prior-pill">✎ Editing submitted inspection</span></div>':'')+
+      '<div class="small muted">'+esc(d.type)+' · started '+esc(fmt(d.startedAt))+'</div>'+
+      '<div class="progress" style="margin-block-start:8px"><i style="inline-size:'+s.pct+'%"></i></div>'+
+      '<div class="small muted" style="margin-block-start:4px">'+s.done+'/'+s.total+' checked · '+s.issues+' issues · '+s.photos+' photos</div></div>'+
+      '<button class="btn sm danger" data-act="discard" data-id="'+esc(d.id)+'" type="button">Delete</button></div></div>';
+  });
+  if(!h) h='<div class="card" style="text-align:center;padding-block:28px"><div class="title">Nothing in progress</div><div class="small muted" style="margin-block:6px 14px">Start an inspection from the property list.</div>'+
+    '<button class="btn primary" type="button" data-act="tab" data-id="new">＋ Start an inspection</button></div>';
+  return h;
+}
+function submittedTabHtml(){
+  var h='<div class="row" style="gap:8px;margin-block-end:10px"><input type="search" id="subSearch" class="grow" placeholder="Search submitted…" value="'+esc(S.subQ||'')+'" style="margin:0">'+
+    '<div class="row" style="gap:4px;background:var(--chip);padding:3px;border-radius:99px;flex:none">'+
+    ['all','mine'].map(function(f){ var on=S.recentFilter===f; return '<button type="button" class="btn sm'+(on?' primary':'')+'" data-act="recent-filter" data-id="'+f+'" style="min-height:32px;border:0;border-radius:99px;box-shadow:none;'+(on?'':'background:transparent')+'">'+(f==='all'?'Everyone':'Mine')+'</button>'; }).join('')+'</div></div>';
+  return h+'<div id="subList">'+submittedListHtml()+'</div>';
+}
+function submittedListHtml(){
+  var q=String(S.subQ||'').trim().toLowerCase();
+  var rl=recentFiltered().filter(function(x){ return !q || (x.propertyName+' '+(x.address||'')+' '+(x.type||'')+' '+(x.inspector||'')).toLowerCase().indexOf(q)>=0; });
+  var h='';
+  if(!rl.length) h+='<div class="card small muted">'+(q?'Nothing submitted matches that.':S.recentFilter==='mine'?'You haven’t submitted any inspections yet. Switch to “Everyone” to see the team’s.':'No inspections submitted yet.')+'</div>';
+  rl.slice(0,S.recentShow).forEach(function(x){
+    var who=x.mine?'You':(x.inspector||'');
+    h+='<div class="card small'+(x.id?' tap" data-act="view-insp" data-id="'+esc(x.id)+'"':'"')+'><div class="row"><div class="grow"><div class="title">'+esc(x.propertyName)+'</div>'+
+      '<div class="muted">'+esc(x.type)+' · '+esc(fmt(x.submittedAt))+'</div>'+
+      '<div style="margin-block-start:6px">'+(who?'<span class="pill">👤 '+esc(who)+'</span>':'')+'<span class="pill'+(x.issues?' issue':' done')+'">'+(x.issues||0)+' issues</span>'+(x.photos?'<span class="pill">📷 '+x.photos+'</span>':'')+'</div>'+
+      (!x.id&&x.reportUrl?'<div class="row wrap" style="margin-block-start:8px"><a class="btn sm" target="_blank" rel="noopener" href="'+esc(x.reportUrl)+'">Report</a></div>':'')+
+      '</div>'+(x.id?'<span class="chev">›</span>':'')+'</div></div>';
+  });
+  if(rl.length>S.recentShow) h+='<button class="btn block dashed" type="button" data-act="recent-more">Show more ('+(rl.length-S.recentShow)+')</button>';
+  if(HAS_GAS && S.recentOffline) h+='<div class="small muted" style="text-align:center;margin-block-start:6px">Offline — showing the list saved on this device.</div>';
+  return h;
+}
+function setupTabHtml(){
+  var h='<div class="card tap" data-act="admin"><div class="row"><div class="tile t1">🏠</div><div class="grow"><div class="title">Manage properties</div><div class="small muted">Areas and checks for each property, and the letting details (admin PIN)</div></div><span class="chev">›</span></div></div>';
+  h+='<div class="card"><label class="fld" style="margin:0"><span>Your name as inspector</span><input type="text" id="setInspector" value="'+esc(localStorage.getItem('fi-inspector')||'')+'" placeholder="Used when you start an inspection"></label></div>';
+  h+='<button class="btn block" type="button" data-act="refresh">↻ Refresh properties and inspections</button>';
+  h+='<div class="small muted" style="text-align:center;margin-block-start:18px">App version '+APP_VERSION+(S.serverVersion?' · backend '+esc(S.serverVersion):'')+(HAS_GAS?'':' · demo')+'</div>';
+  return h;
+}
+/* ---- a submitted inspection, read-only ---- */
+VIEWS.viewInsp = function(id){
+  var rec=recById(id)||{}; setTitle(rec.propertyName||'Inspection');
+  var have=viewCacheGet(id);
+  if(have){ S.viewD=have; viewInspRender(id); }
+  else $('#app').innerHTML='<div class="card row"><span class="spin"></span><span class="title">Opening…</span></div>';
+  setFooter('<button class="btn" type="button" data-act="back">‹ Back</button>');
+  return api.getInspection({id:id}).then(function(r){
+    var d=serverDraft(r); d.submittedAt=r.submittedAt; d.reportUrl=r.reportUrl||rec.reportUrl||''; d.folderUrl=r.folderUrl||rec.folderUrl||''; d.submittedBy=r.submittedBy||'';
+    viewCachePut(id,d);
+    if(S.cur.view==='viewInsp' && S.cur.arg===id){ S.viewD=d; viewInspRender(id); }
+  }).catch(function(e){ if(!have && S.cur.view==='viewInsp' && S.cur.arg===id) $('#app').innerHTML='<div class="card">Couldn’t open this inspection: '+esc(e.message)+'</div>'; });
+};
+function viewInspRender(id){
+  var d=S.viewD, s=stats(d), rec=recById(id)||{}, tn=tenantCount(d);
+  var h='<div class="card"><div class="row" style="align-items:flex-start"><div class="grow"><div class="title">'+esc(d.propertyName)+'</div><div class="small muted">'+esc(d.address||'')+'</div></div><span class="ro-badge">Read only</span></div>'+
+    '<div class="small" style="margin-block-start:8px">'+esc(d.type)+' · submitted '+esc(fmt(d.submittedAt))+(d.inspector?' · '+esc(d.inspector):'')+(d.tenant?' · tenant '+esc(d.tenant):'')+'</div>'+
+    '<div style="margin-block-start:8px"><span class="pill">'+s.done+'/'+s.total+' checked</span><span class="pill'+(s.issues?' issue':' done')+'">'+s.issues+' issues</span>'+(s.photos?'<span class="pill">📷 '+s.photos+'</span>':'')+'</div>'+
+    '<div class="row wrap" style="margin-block-start:12px">'+(d.reportUrl?'<a class="btn sm" target="_blank" rel="noopener" href="'+esc(d.reportUrl)+'">📄 Report</a>':'')+
+      (HAS_GAS?'<button class="btn sm ghost" type="button" data-act="email" data-id="'+esc(id)+'" data-f="'+esc(d.folderUrl||'')+'">✉ Email full report</button>':'')+
+      (tn&&HAS_GAS?'<button class="btn sm ghost" type="button" data-act="email-tenant" data-id="'+esc(id)+'">🧑 Email tenant issues ('+tn+')</button>':'')+
+      (d.folderUrl?'<a class="btn sm ghost" target="_blank" rel="noopener" href="'+esc(d.folderUrl)+'">📁 Drive folder</a>':'')+'</div>'+
+    '<div class="row wrap" style="margin-block-start:8px">'+(HAS_GAS?'<button class="btn sm" type="button" data-act="edit-insp" data-id="'+esc(id)+'">✏️ Edit (admin PIN)</button>':'')+
+      '<button class="btn sm danger" type="button" data-act="del-insp" data-id="'+esc(id)+'" data-f="'+esc(d.folderUrl||rec.folderUrl||'')+'">🗑 Delete</button></div></div>';
+  var issues='';
+  d.areas.forEach(function(a,ai){ a.items.forEach(function(it){ if(!ISSUE[it.status]) return;
+    issues+='<div class="list-issue tap" data-act="view-area" data-i="'+ai+'"><div><b>'+esc(a.name)+'</b> — '+esc(it.label)+'</div><div class="small"><span class="pill issue">'+esc(STATUS_LABEL[it.status])+'</span>'+
+      (it.action?'<span class="pill">'+esc(ACTION_LABEL[it.action])+'</span>':'')+(it.photos.length?'<span class="pill">📷 '+it.photos.length+'</span>':'')+'</div>'+(it.note?'<div class="small muted">'+esc(it.note)+'</div>':'')+'</div>';
+  }); });
+  if(issues) h+='<h2>Issues</h2><div class="card">'+issues+'</div>';
+  h+='<h2>Areas</h2>';
+  d.areas.forEach(function(a,ai){ var as=areaStats(a);
+    h+='<div class="card tap" data-act="view-area" data-i="'+ai+'"><div class="row"><div class="grow"><div class="title">'+esc(a.name)+'</div>'+
+      '<div class="small" style="margin-block-start:4px"><span class="pill'+(as.done===as.total&&as.total?' done':'')+'">'+as.done+'/'+as.total+'</span>'+(as.issues?'<span class="pill issue">'+as.issues+' issues</span>':'')+(as.photos?'<span class="pill">📷 '+as.photos+'</span>':'')+'</div>'+
+      (a.notes?'<div class="small muted" style="margin-block-start:4px">'+esc(a.notes)+'</div>':'')+'</div><span class="chev">›</span></div></div>';
+  });
+  if(d.overallNotes) h+='<h2>Overall comments</h2><div class="card small">'+esc(d.overallNotes)+'</div>';
+  $('#app').innerHTML=h;
+}
+function roThumbs(photos){
+  if(!photos||!photos.length) return '';
+  return '<div class="ro-thumbs">'+photos.map(function(p){ var img='<img alt="Photo" src="'+esc(p.thumb)+'" referrerpolicy="no-referrer" data-fallback="PHOTO_PLACEHOLDER">';
+    return p.url? '<a href="'+esc(p.url)+'" target="_blank" rel="noopener">'+img+'</a>' : img; }).join('')+'</div>';
+}
+VIEWS.viewArea = function(ai){
+  var d=S.viewD; if(!d) return back(); var a=d.areas[ai]; if(!a) return back();
+  setTitle(a.name);
+  var h='<div class="card"><div class="row"><div class="grow small muted">Area '+(ai+1)+' of '+d.areas.length+' · '+esc(d.propertyName)+'</div><span class="ro-badge">Read only</span></div>';
+  a.items.forEach(function(it){
+    var cls=ISSUE[it.status]?' issue':it.status==='ok'?' done':'';
+    h+='<div class="ro-item"><div class="row" style="align-items:flex-start"><div class="grow" style="font-weight:700">'+esc(it.label)+'</div><span class="pill'+cls+'">'+esc(it.status?(STATUSES.find(function(s){ return s.k===it.status; })||{s:it.status}).s:'Not checked')+'</span></div>'+
+      (it.action&&ISSUE[it.status]?'<div class="small muted">Action: '+esc(ACTION_LABEL[it.action])+'</div>':'')+
+      (it.note?'<div class="small" style="margin-block-start:4px">'+esc(it.note)+'</div>':'')+roThumbs(it.photos)+'</div>';
+  });
+  h+='</div>';
+  if(a.notes||a.photos.length) h+='<h2>Area notes and photos</h2><div class="card">'+(a.notes?'<div class="small">'+esc(a.notes)+'</div>':'')+roThumbs(a.photos)+'</div>';
+  $('#app').innerHTML=h;
+  var prev=ai>0, next=ai<d.areas.length-1;
+  setFooter('<button class="btn" type="button" data-act="view-goto" data-i="'+(ai-1)+'"'+(prev?'':' disabled')+'>‹ Prev</button>'+
+    '<button class="btn" type="button" data-act="back">All areas</button>'+
+    '<button class="btn" type="button" data-act="view-goto" data-i="'+(ai+1)+'"'+(next?'':' disabled')+'>Next ›</button>');
 };
 function propListHtml(q){
   q=(q||'').toLowerCase();
   var list=S.props.filter(function(p){ return !q || (p.name+' '+(p.address||'')).toLowerCase().indexOf(q)>=0; });
-  if(!list.length) return '<div class="card muted">No properties found. Use “Manage properties” to add one.</div>';
+  if(!list.length) return '<div class="card muted">No properties found. Add one in Setup › Manage properties.</div>';
   return list.map(function(p){ var n=0; p.areas.forEach(function(a){ n+=(a.items||[]).length; });
     var k=0; for(var c=0;c<p.id.length;c++) k+=p.id.charCodeAt(c);
+    var last=recentList().find(function(x){ return (x.propertyId && x.propertyId===p.id) || (!x.propertyId && x.propertyName===p.name); });
     return '<div class="card tap" data-act="open-prop" data-id="'+esc(p.id)+'"><div class="row"><div class="tile t'+(k%5)+'">🏠</div><div class="grow"><div class="title">'+esc(p.name)+'</div><div class="small muted">'+esc(p.address||'')+'</div>'+
-      '<div style="margin-block-start:6px"><span class="pill">🚪 '+p.areas.length+' areas</span><span class="pill">✅ '+n+' checks</span></div></div><span class="chev">›</span></div></div>';
+      '<div style="margin-block-start:6px"><span class="pill">🚪 '+p.areas.length+' areas</span><span class="pill">✅ '+n+' checks</span>'+(last?'<span class="pill">Last: '+esc(new Date(last.submittedAt).toLocaleDateString('en-NZ',{day:'numeric',month:'short'}))+'</span>':'')+'</div></div><span class="chev">›</span></div></div>';
   }).join('');
 }
 
@@ -903,6 +997,7 @@ VIEWS.review = function(){
 };
 
 VIEWS.done = function(res){
+  S.tab='submitted'; if(res && res.id) viewCacheDrop(res.id);
   setTitle(res.edited?'Saved':'Submitted');
   if(res.edited) buzz(20); else confetti();
   $('#app').innerHTML='<div class="card success"><div class="boom">'+(res.edited?'✅':'🎉')+'</div><div class="big">'+(res.edited?'Changes saved':'Inspection submitted!')+'</div><div class="muted small" style="margin-block-start:6px">'+esc(res.propertyName)+' · '+esc(fmt(res.submittedAt))+'</div>'+
@@ -1172,6 +1267,10 @@ document.addEventListener('click',function(ev){
   var d=S.draft;
   switch(act){
     case 'home': home(); break;
+    case 'tab': S.tab=id; S.stack=[]; S.cur={view:'home'}; render(); window.scrollTo(0,0); break;
+    case 'view-insp': go('viewInsp',id); break;
+    case 'view-area': go('viewArea',num(el.getAttribute('data-i'))); break;
+    case 'view-goto': var vi=num(el.getAttribute('data-i')); if(S.viewD && vi>=0 && vi<S.viewD.areas.length) go('viewArea',vi,true); break;
     case 'back': back(); break;
     case 'refresh': loadProps().then(function(){ render(); toast('Properties refreshed'); autoRestore(); }); break;
     case 'open-prop': go('start',id); break;
@@ -1183,7 +1282,7 @@ document.addEventListener('click',function(ev){
       S.draft=newDraft(clone(p),{type:$('#stType').value,inspector:insp,tenant:$('#stTenant').value.trim()});
       var nd=S.draft; attachPrior(nd,priorCacheGet(p.id));
       if(!nd.prior && HAS_GAS && navigator.onLine) fetchPrior(p.id).then(function(pr){ if(attachPrior(nd,pr)){ persist(true); if(S.draft===nd) render(); } });
-      persist(true).then(function(){ S.stack=[{view:'home'}]; S.cur={view:'inspect'}; render(); });
+      S.tab='progress'; persist(true).then(function(){ S.stack=[{view:'home'}]; S.cur={view:'inspect'}; render(); });
       break;
     case 'recover': recoverInsp(id); break;
     case 'discard-remote': discardRemote(id); break;
@@ -1267,6 +1366,8 @@ document.addEventListener('click',function(ev){
   }
 });
 document.addEventListener('input',function(ev){
+  if(ev.target.id==='subSearch'){ S.subQ=ev.target.value; S.recentShow=10; var sl=$('#subList'); if(sl) sl.innerHTML=submittedListHtml(); return; }
+  if(ev.target.id==='setInspector'){ try{ localStorage.setItem('fi-inspector',ev.target.value.trim()); }catch(e){} return; }
   var el=ev.target, b=el.getAttribute('data-bind'), d=S.draft;
   if(el.id==='propSearch'){ $('#propList').innerHTML=propListHtml(el.value); return; }
   if(b==='note'){ var it=d.areas[+el.getAttribute('data-a')].items[+el.getAttribute('data-t')]; it.note=el.value; it.noteAt=nowIso(); persist(); }

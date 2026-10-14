@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.17.3';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.17.4';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -189,7 +189,12 @@ S.recent=null; S.me=''; S.recentShow=10;
 try{ var rc=JSON.parse(localStorage.getItem('fi-recent-cache')||'null'); if(rc){ S.recent=rc.items; S.me=rc.me||''; } }catch(e){}
 S.recentFilter=localStorage.getItem('fi-recent-filter')||'all';
 S.inProgress=null; try{ S.inProgress=JSON.parse(localStorage.getItem('fi-inprogress-cache')||'null'); }catch(e){}
-function setInProgress(list){ S.inProgress=list; try{ localStorage.setItem('fi-inprogress-cache',JSON.stringify(list)); }catch(e){} }
+function store(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){ try{ localStorage.removeItem(k); }catch(x){} } }
+function setInProgress(list){ S.inProgress=list; store('fi-inprogress-cache',list); }
+function setProps(list){ S.props=list||[]; store('fi-props-cache',S.props); }
+function saveRecent(){ store('fi-recent-cache',{items:S.recent,me:S.me}); }
+/* Something was deleted, archived or saved here: a server refresh that started before it is out of date (loadProps fetches again) */
+function changedHere(){ S.changeSeq=(S.changeSeq||0)+1; }
 /* Submitted inspections from ALL devices (from the Sheet), plus anything this device submitted that
    the server list doesn't include yet. Falls back to this device's list in demo mode / offline. */
 function recentList(){
@@ -441,11 +446,11 @@ function deleteInspDialog(rec){
     if(HAS_GAS && !navigator.onLine){ err.textContent='You are offline — try again when you have signal.'; return; }
     b.disabled=true; b.textContent='Deleting…'; err.textContent='';
     api.deleteInspection(pin,{id:rec.id||'',folderUrl:rec.folderUrl||'',reportUrl:rec.reportUrl||''}).then(function(r){
-      S.pin=pin; try{ localStorage.setItem('fi-admin-seen','1'); }catch(e){}
+      changedHere(); S.pin=pin; try{ localStorage.setItem('fi-admin-seen','1'); }catch(e){}
       var id=(r&&r.inspectionId)||rec.id;
       function keep(x){ return !((id && x.id===id) || (rec.folderUrl && x.folderUrl===rec.folderUrl)); }
       S.history=S.history.filter(keep); try{ localStorage.setItem('fi-history',JSON.stringify(S.history)); }catch(e){}
-      if(S.recent){ S.recent=S.recent.filter(keep); try{ localStorage.setItem('fi-recent-cache',JSON.stringify({items:S.recent,me:S.me})); }catch(e){} }
+      if(S.recent){ S.recent=S.recent.filter(keep); saveRecent(); }
       if(r && r.propertyId) try{ localStorage.removeItem('fi-prior-'+r.propertyId); }catch(e){}
       m.remove(); render(); toast('🗑 Inspection deleted',3000); buzz(20);
     }).catch(function(e2){ b.disabled=false; b.textContent='Delete'; err.textContent=e2.message; });
@@ -586,7 +591,7 @@ function discardRemote(id){
   ask('Delete '+rec.propertyName+' ('+rec.type+', started '+fmt(rec.startedAt)+') for everyone? Its uploaded photos move to the Drive bin.',{ok:'Delete'}).then(function(ok){
     if(!ok) return;
     if(!navigator.onLine){ toast('You are offline — try again when you have signal.'); return; }
-    return api.discardInspection(id).then(function(){ setInProgress((S.inProgress||[]).filter(function(x){ return x.id!==id; })); render(); toast('🗑 Deleted'); });
+    return api.discardInspection(id).then(function(){ changedHere(); setInProgress((S.inProgress||[]).filter(function(x){ return x.id!==id; })); render(); toast('🗑 Deleted'); });
   }).catch(function(e){ toast('Couldn’t delete: '+e.message,5000); });
 }
 
@@ -1150,7 +1155,7 @@ function submit(){
       rec.submittedAt=d.edit.submittedAt||rec.submittedAt; rec.edited=true;
       var upd=function(x){ return x.id===d.id? Object.assign({},x,{issues:s.issues,photos:s.photos,tenantIssues:rec.tenantIssues,reportUrl:rec.reportUrl||x.reportUrl,folderUrl:rec.folderUrl||x.folderUrl}) : x; };
       S.history=S.history.map(upd);
-      if(S.recent){ S.recent=S.recent.map(upd); try{ localStorage.setItem('fi-recent-cache',JSON.stringify({items:S.recent,me:S.me})); }catch(e){} }
+      if(S.recent){ S.recent=S.recent.map(upd); saveRecent(); }
       try{ localStorage.removeItem('fi-prior-'+d.propertyId); }catch(e){}
     } else S.history.unshift(rec);
     S.history=S.history.slice(0,20); try{ localStorage.setItem('fi-history',JSON.stringify(S.history)); }catch(e){}
@@ -1258,9 +1263,9 @@ document.addEventListener('click',function(ev){
       if(!String(e.address1||'').trim()){ toast('Street address is required'); return; }
       var lp=lettingProblem(e); if(lp){ toast(lp,4000); return; }
       e.address2=noPostcode(e.address2); e.address=joinAddr(e.address1,e.address2);   // the one-line address is always street, suburb
-      el.disabled=true; delete e.clonedFrom; api.saveProperty(S.pin,e).then(function(r){ S.props=r.properties; toast('Template saved'); back(); }).catch(function(x){ el.disabled=false; toast('Save failed: '+x.message,4000); }); break;
+      el.disabled=true; delete e.clonedFrom; api.saveProperty(S.pin,e).then(function(r){ changedHere(); setProps(r.properties); toast('Template saved'); back(); }).catch(function(x){ el.disabled=false; toast('Save failed: '+x.message,4000); }); break;
     case 'ed-archive': ask('Archive this property? It will no longer appear for inspectors (past inspections are kept).',{ok:'Archive'}).then(function(ok){ if(!ok) return;
-      api.archiveProperty(S.pin,S.editing.id).then(function(r){ S.props=r.properties; back(); toast('Property archived'); }).catch(function(x){ toast(x.message); }); }); break;
+      api.archiveProperty(S.pin,S.editing.id).then(function(r){ changedHere(); setProps(r.properties); back(); toast('Property archived'); }).catch(function(x){ toast(x.message); }); }); break;
   }
 });
 document.addEventListener('input',function(ev){
@@ -1301,10 +1306,12 @@ setInterval(function(){ checkForUpdate(); },30*60*1000);
 
 /* ================= Boot ================= */
 function loadProps(){
-  return api.bootstrap().then(function(r){ S.props=r.properties||[]; S.serverVersion=r.version||''; S.retire=r.retire||'';
+  var seq=S.changeSeq||0;
+  return api.bootstrap().then(function(r){ if((S.changeSeq||0)!==seq) return loadProps();   // changed here meanwhile: this reply is out of date
+      S.props=r.properties||[]; S.serverVersion=r.version||''; S.retire=r.retire||'';
       if(r.inProgress) setInProgress(r.inProgress);
-      if(r.recent){ S.recent=r.recent; S.me=r.me||''; S.recentOffline=false; try{ localStorage.setItem('fi-recent-cache',JSON.stringify({items:r.recent,me:S.me})); }catch(e){} }
- try{ localStorage.setItem('fi-props-cache',JSON.stringify(S.props)); }catch(e){} })
+      if(r.recent){ S.recent=r.recent; S.me=r.me||''; S.recentOffline=false; saveRecent(); }
+ setProps(S.props); })
     .catch(function(err){ try{ S.props=JSON.parse(localStorage.getItem('fi-props-cache')||'[]'); }catch(e){ S.props=[]; } S.recentOffline=true;
       var m=(err&&err.message)||''; toast(/access|set up/i.test(m)? m : 'Offline — using saved property list', 6000); });
 }

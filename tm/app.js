@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.13.3';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.13.4';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -98,9 +98,14 @@ var CANON={'draft':'Draft','ready':'Ready','send pending':'Send Pending','sent':
 function canonStatus(v){ var k=String(v||'').trim().toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' '); return CANON[k]||String(v||'').trim(); }
 /* The form counts as opened once DocHub reports it in progress (or done), even if no "viewed" time came back */
 function isOpened(a){ return !!a.viewedAt || a.status==='In Progress' || a.status==='Finalized'; }
-function apply(st){ if(st&&st.applications){ st.applications.forEach(function(a){ a.status=canonStatus(a.status)||'Draft'; });
+function apply(st){ if(st&&st.applications){
+    // A reply made before the one already shown (a refresh that started before a delete or save, but finished after it)
+    // is out of date: keep what's shown, so a deleted record can't come back.
+    if(S.st && S.st.serverTime && st.serverTime && st.serverTime<S.st.serverTime) return S.st;
+    st.applications.forEach(function(a){ a.status=canonStatus(a.status)||'Draft'; });
     if(st.propertiesError && S.propErrShown!==st.propertiesError){ S.propErrShown=st.propertiesError; toast('Property list: '+st.propertiesError,6000); }
-    S.st=st; try{ localStorage.setItem('tm-cache',JSON.stringify(st)); }catch(e){}
+    // the copy kept on this phone always matches the server's latest reply; if the phone won't store it, none is kept
+    S.st=st; try{ localStorage.setItem('tm-cache',JSON.stringify(st)); }catch(e){ try{ localStorage.removeItem('tm-cache'); }catch(x){} }
     if((st.matched||[]).length){ var mm=st.matched.map(function(x){ var pp=personById(x.personId); return x.as+(pp?' ('+pp.status+')':''); }); toast('Already known: '+nameList(mm)+'. Linked to their person record.',6000); } } return st; }
 function apps(){ return (S.st&&S.st.applications)||[]; }
 /* The signed-in user's details (Setup > My details) */

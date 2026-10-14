@@ -148,6 +148,34 @@
     });
     document.body.appendChild(b);
   });
+  /* iPhone / iPad: Safari can't offer the install itself, so show how (Share > Add to Home Screen). Only in the browser,
+     never in the installed app. Matters more here: only the installed app keeps inspections and photos safely. */
+  (function () {
+    var ua = navigator.userAgent || '', ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    var installed = !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches));
+    if (!ios || installed) return;
+    var until = 0; try { until = +localStorage.getItem(SNOOZE) || 0; } catch (x) {}
+    if (Date.now() < until) return;
+    function show() {
+      if (document.getElementById('installBar')) return;
+      var share = '<svg width="18" height="22" viewBox="0 0 18 22" aria-label="Share" style="vertical-align:-4px"><path d="M9 1v13M4.5 5.5 9 1l4.5 4.5" fill="none" stroke="#0a84ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<path d="M6 9H3.5A1.5 1.5 0 0 0 2 10.5v8A1.5 1.5 0 0 0 3.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 14.5 9H12" fill="none" stroke="#0a84ff" stroke-width="2" stroke-linecap="round"/></svg>';
+      var b = document.createElement('div'); b.id = 'installBar'; b.setAttribute('role', 'dialog'); b.setAttribute('aria-label', 'Add Rentals to your Home Screen');
+      b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:99998;background:#fff;color:#0f172a;' +
+        'border:1px solid #e2e8f0;border-radius:16px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.22);font:15px/1.45 -apple-system,system-ui,sans-serif';
+      b.innerHTML = '<div style="display:flex;gap:12px;align-items:flex-start"><img src="' + (APP ? '../' : '') + 'icon-180.png" alt="" width="44" height="44" style="border-radius:10px;flex:none">' +
+        '<div style="flex:1"><b>Add Rentals to your Home Screen</b><br>Tap ' + share + ' <b>Share</b> (in Safari’s toolbar, or under <b>•••</b>), then <b>Add to Home Screen</b>.' +
+        '<div style="color:#475569;font-size:.86rem;margin-top:4px">Use the app from its icon: only the installed app keeps your inspections and photos safely on this phone.</div></div></div>' +
+        '<div style="text-align:right;margin-top:8px"><button type="button" data-inst="no" style="font:inherit;padding:7px 14px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;color:#0f172a">Not now</button></div>';
+      b.addEventListener('click', function (ev) {
+        if (!ev.target.closest('[data-inst]')) return;
+        try { localStorage.setItem(SNOOZE, String(Date.now() + 30 * 864e5)); } catch (x) {}
+        b.remove();
+      });
+      document.body.appendChild(b);
+    }
+    if (document.body) show(); else document.addEventListener('DOMContentLoaded', show);
+  })();
   window.addEventListener('appinstalled', function () { var b = document.getElementById('installBar'); if (b) b.remove(); installEvt = null; });
 
   /* Offline start and updates */

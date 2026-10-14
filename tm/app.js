@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.13.4';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.13.5';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -2608,7 +2608,7 @@ VIEWS.ref = function(arg){
       '<dl class="kv">'+(c.relationship?'<dt>Relationship</dt><dd>'+esc(c.relationship)+'</dd>':'')+(c.phone?'<dt>Phone</dt><dd class="copy" data-copy="'+esc(c.phone)+'">'+esc(c.phone)+' <span>\uD83D\uDCCB</span></dd>':'')+
       (c.email?'<dt>Email</dt><dd class="copy" data-copy="'+esc(c.email)+'">'+esc(c.email)+' <span>\uD83D\uDCCB</span></dd>':'')+(c.address?'<dt>Rental</dt><dd>'+esc(c.address)+'</dd>':'')+
       (c.rent!==''?'<dt>Rent paid</dt><dd>'+esc(isFinite(Number(c.rent))?money(c.rent):c.rent)+'</dd>':'')+(c.vacated?'<dt>Moved out</dt><dd>'+esc(/^\d{4}-\d\d-\d\dT/.test(c.vacated)?fmtDate(c.vacated):c.vacated)+'</dd>':'')+
-      (c.emailSent?'<dt>Emailed</dt><dd>\u2709 '+esc(fmt(c.emailSent))+'</dd>':'')+
+      (c.emailSent?'<dt>Emailed</dt><dd><button type="button" data-act="clear-emailed" title="Tap to clear" style="background:none;border:0;padding:0;font:inherit;color:inherit;text-decoration:underline dotted;cursor:pointer">\u2709 '+esc(fmt(c.emailSent))+'</button></dd>':'')+
       (c.checkedAt?'<dt>Last checked</dt><dd>'+esc(fmt(c.checkedAt))+(c.checkedBy?' by '+esc(c.checkedBy):'')+'</dd>':'')+'</dl>'+
       '<div class="callbar">'+(c.phone?'<a class="btn sm primary" target="_blank" rel="noopener" href="'+esc(telHref(c.phone))+'">\uD83D\uDCDE Call</a><a class="btn sm" target="_blank" rel="noopener" href="'+esc(smsHref(c.phone,refSmsText(c,r.app,sharedOf(arg.ref,c.slot))))+'">\uD83D\uDCAC Text</a>':'<span></span><span></span>')+
       (c.email?'<button class="btn sm" type="button" data-act="email-ref">\u2709 Email</button>':'<span></span>')+'</div>'+pdfLink(r.app)+'</div>';
@@ -2624,9 +2624,6 @@ VIEWS.ref = function(arg){
       REF_STATUSES.map(function(s){ return '<button type="button" data-seg="status" data-v="'+esc(s)+'" class="'+(F.status===s?'on':'')+'">'+esc(s)+'</button>'; }).join('')+'</div>'+
       '<label class="fld" style="margin-block-end:4px"><span>Outcome</span></label><div class="seg c3">'+
       OUTCOMES.map(function(s){ return '<button type="button" data-seg="outcome" data-v="'+esc(s)+'" class="'+(F.outcome===s?'on':'')+'">'+(s==='Positive'?'\uD83D\uDC4D ':s==='Concern'?'\u26A0 ':'\u3030 ')+esc(s)+'</button>'; }).join('')+'</div>'+
-      (c.email?'<label class="row" style="gap:10px;padding:10px 12px;border:2px solid var(--line);border-radius:14px;margin-block-end:14px;cursor:pointer">'+
-        '<input type="checkbox" id="rfEmailSent"'+(c.emailSent?' checked':'')+'><span class="grow" style="font-weight:700">Questions emailed</span>'+
-        '<span class="small muted">'+(c.emailSent?esc(fmt(c.emailSent)):'Not yet')+'</span></label>':'')+
       '<label class="fld"><span>Summary notes</span><textarea id="rfNotes" placeholder="The overall picture in a sentence or two">'+esc(F.notes)+'</textarea></label>'+
       '<label class="fld"><span>Checked by</span><input type="text" id="rfBy" value="'+esc(F.checkedBy)+'"></label>'+
       (others.length?'<div class="fld" style="margin-block-end:12px"><span style="display:block;font-size:.78rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-block-end:6px">Also save this result for</span>'+
@@ -3051,7 +3048,7 @@ function refEmailBody(c,r,sets,from){
 function markEmailSent(sent){
   var F=S.form; if(!F) return;
   api.tmMarkEmailSent(F.ref,F.slot,sent).then(function(r){ S.refs[F.ref]=r; if(S.form===F && S.cur.view==='ref') render(); toast(sent?'Marked as emailed':'Email flag cleared'); })
-    .catch(function(e){ toast(e.message,5000); var cb=$('#rfEmailSent'); if(cb) cb.checked=!sent; });
+    .catch(function(e){ toast(e.message,5000); });
 }
 function emailRefDialog(){
   var F=S.form, r=S.refs[F.ref], c=r.contacts.find(function(x){ return x.slot===F.slot; });
@@ -3344,6 +3341,7 @@ document.addEventListener('click',function(e){
   if(act==='refresh-agreement') return busy(t,'Checking',api.tmRefreshAgreement(id)).then(function(st){ apply(st); var g=groupLead(id), ag=(g&&g.agreement)||{};
     toast(ag.status==='Signed'?'Everyone has signed'+(ag.pdf?' \u2014 saved to Drive':''):'Agreement: '+(ag.signed||'0')+' signed'); render(); }).catch(function(){});
   if(act==='agreement-resend') return resendDialog('agreement',id,t.getAttribute('data-v'),t.getAttribute('data-who'),t.getAttribute('data-name'));   // not 'resend-link': that's the application form's Resend link
+  if(act==='clear-emailed') return ask('Clear the emailed flag for this reference? The emailed time is removed, so it shows as not emailed yet.','Clear').then(function(ok){ if(ok) markEmailSent(false); });
   if(act==='cancel-agreement') return ask('Cancel the agreement sent to <b>'+esc(groupName(id))+'</b>? '+(isEsign((groupLead(id)||{}).agreement)?'Anyone already sent a link will be told':'DocHub will tell the signers')+' it\u2019s been cancelled, and you can then send a new one.','Cancel agreement').then(function(ok){ if(!ok) return;
     return busy(t,'Cancelling',api.tmCancelAgreement(id)).then(function(st){ apply(st); toast('Agreement cancelled'); render(); }).catch(function(){}); });
   if(act==='copy-link'){ var la=appByRef(id); if(!la.applyLink){ toast('The online form address isn\u2019t set up (APPLY_URL)'); return; } copyText(la.applyLink,'Link copied \u2014 paste it into a text to '+la.name.split(' ')[0]); return; }
@@ -3425,7 +3423,7 @@ document.addEventListener('click',function(e){
       .then(function(){ toast(also.length?'Saved for '+(also.length+1)+' applicants':'Reference check saved'); S.form=null; back(); }).catch(function(){});
   }
 });
-document.addEventListener('change',function(e){ if(e.target.id==='rfEmailSent') markEmailSent(e.target.checked); editField(e.target); });
+document.addEventListener('change',function(e){ editField(e.target); });
 document.addEventListener('input',function(e){
   var el=e.target;
   if(editField(el)) return;

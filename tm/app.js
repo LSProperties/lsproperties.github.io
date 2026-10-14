@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.13.6';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.13.7';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1334,12 +1334,12 @@ function setupPropCard(p){
     '<button class="btn sm ghost grow" type="button" data-act="prop-clone" data-id="'+esc(p.propertyId)+'">\u29C9 Clone</button></div></div>';
 }
 /* Inspection areas: the same library and quick layout builder as Flat Inspections */
-var COMMON=['Walls \u2013 marks, holes, damage','Ceiling','Floor / carpet \u2013 stains, damage','Skirting boards \u2013 clean','Windows & glass \u2013 intact','Curtains / blinds','Doors, handles & locks','Light fittings & bulbs','Power points & switches'];
+var COMMON=['Walls \u2013 marks, holes, damage','Ceiling','Floor / carpet \u2013 stains, damage','Skirting boards \u2013 clean','Windows & glass','Curtains / blinds','Doors, handles & locks','Light fittings & bulbs','Power points & switches'];
 var LIB={
   'Bedroom': COMMON.concat(['Wardrobe / storage','Smoke alarm \u2013 present & working']),
   'Living / Dining': COMMON.concat(['Heat pump / heater','Smoke alarm \u2013 present & working']),
   'Kitchen': COMMON.concat(['Benchtops','Cupboards & drawers','Oven & hob','Rangehood','Sink & taps','Dishwasher (chattel)','Fridge (chattel)']),
-  'Bathroom': ['Walls \u2013 marks, holes, damage','Ceiling','Floor / tiles','Skirting boards \u2013 clean','Windows & glass \u2013 intact','Light fittings & bulbs','Shower / bath','Toilet','Vanity & basin','Mirror & cabinet','Extractor fan','Mould / mildew','Towel rail'],
+  'Bathroom': ['Walls \u2013 marks, holes, damage','Ceiling','Floor / tiles','Skirting boards \u2013 clean','Windows & glass','Light fittings & bulbs','Shower / bath','Toilet','Vanity & basin','Mirror & cabinet','Extractor fan','Mould / mildew','Towel rail'],
   'Toilet': ['Walls','Floor','Toilet','Hand basin','Light fittings & bulbs','Extractor fan'],
   'Laundry': ['Walls','Floor','Skirting boards \u2013 clean','Tub & taps','Washing machine connections','Dryer (chattel)','Light fittings & bulbs'],
   'Hallway / Entry': COMMON.concat(['Smoke alarm \u2013 present & working']),

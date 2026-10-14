@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.17.2';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.17.3';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -35,7 +35,8 @@ var LIB = {
 var AREA_TYPES = Object.keys(LIB);
 
 /* ================= Platform tweaks ================= */
-(function(){ var ua=navigator.userAgent||''; if(/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints>1)) document.documentElement.classList.add('ios'); })();
+// the extra top space is only for the old app inside Google's frame (its white status-bar strip); the Rentals app has none
+(function(){ var ua=navigator.userAgent||''; if(!window.RENTALS_CONFIG && (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints>1))) document.documentElement.classList.add('ios'); })();
 
 /* ================= Helpers ================= */
 function $(s,r){ return (r||document).querySelector(s); }

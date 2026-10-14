@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.18.1';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.18.2';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -91,6 +91,14 @@ var api = {
       closing:'Please address these items as soon as possible. Your property manager may be in touch if they decide a reinspection is warranted.',signoff:'Demo',
       items:[{area:'Kitchen',item:'Oven',issue:'Requires cleaning',note:'Grease on the door seal'},{area:'Bathroom',item:'Shower',issue:'Requires cleaning',note:''}],
       tenants:[{name:'Ana Smith',knownAs:'',email:'ana@example.com',current:true,note:'Current tenant'},{name:'Bo Ng',knownAs:'Bobby',email:'bo@example.com',current:true,note:'Current tenant'},{name:'Cy Old',knownAs:'',email:'cy@example.com',current:false,note:'Tenancy ended 2026-01-31'}]});
+  },
+  previewTenantIssues:function(obj){
+    if(HAS_GAS) return gas('previewTenantIssues',obj);
+    var p=function(t){ return '<p style="margin:0 0 14px;white-space:pre-wrap">'+esc(t)+'</p>'; };
+    return Demo.wait({to:validEmails(obj.to),cc:validEmails(obj.cc),subject:obj.subject,items:obj.items.length,
+      html:'<div style="background:#f4f2ff;padding:20px 10px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"><div style="max-width:640px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e6e3f5">'+
+        '<div style="background:#5b21b6;color:#fff;padding:24px"><div style="font-size:13px;opacity:.85;text-transform:uppercase;letter-spacing:1px">Property inspection — items for you to action</div><div style="font-size:22px;font-weight:800;margin-top:4px">Unit 3, 12 Sample Street</div></div>'+
+        '<div style="padding:20px 24px;font-size:15px;line-height:1.55;color:#14122b">'+p(obj.greeting)+p(obj.opening)+'<p>(Demo: the inspection summary and the '+obj.items.length+' chosen item(s) go here.)</p>'+p(obj.closing)+'<p style="margin:0">Kind regards,<br>'+esc(obj.signoff)+'</p></div></div></div>'});
   },
   emailTenantIssues:function(obj){ return HAS_GAS? gas('emailTenantIssues',obj) : Demo.wait({ok:true,sentTo:obj.to,items:0,notes:[]}); },
   getPrior:function(pid){ return HAS_GAS? gas('getPriorFindings',pid) : Promise.resolve(null); },
@@ -423,11 +431,24 @@ function emailDialog(rec){
   });
 }
 /* Emails the tenant only the issues marked "Tenant to action" (no Drive links or photos) */
+/* The tenant email exactly as it will arrive, built by the server (nothing is sent). Closes back to the editor. */
+function emailPreview(r){
+  var v=document.createElement('div'); v.className='modal tallm';
+  v.innerHTML='<div class="box tall epv"><div class="row" style="align-items:center;margin-block-end:10px"><div class="title grow" style="font-size:1.15rem">👁 Preview</div><button class="btn sm" type="button" data-pv="close">Back to editing</button></div>'+
+    '<div class="small" style="margin-block-end:4px"><span class="muted">To:</span> '+esc((r.to||[]).join(', ')||'(no one chosen yet)')+'</div>'+
+    ((r.cc||[]).length?'<div class="small" style="margin-block-end:4px"><span class="muted">CC:</span> '+esc(r.cc.join(', '))+'</div>':'')+
+    '<div class="small" style="margin-block-end:10px"><span class="muted">Subject:</span> <b>'+esc(r.subject||'')+'</b></div><iframe title="Email preview"></iframe></div>';
+  document.body.appendChild(v);
+  var f=v.querySelector('iframe');
+  f.addEventListener('load',function(){ try{ f.style.height=(f.contentDocument.documentElement.scrollHeight+4)+'px'; }catch(e){ f.style.height='70vh'; } });
+  f.srcdoc='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0">'+(r.html||'')+'</body></html>';
+  v.addEventListener('click',function(e){ if(e.target.closest('[data-pv=close]')) v.remove(); });
+}
 function tenantEmailDialog(rec){
   /* The tenant email, prepared on the server, then reviewed and edited here before it's sent:
      who it goes to (the property's tenants, ticked for current ones), subject, greeting, wording, which items, sign-off. */
   var key='fi-tenant-to-'+(rec.propertyName||'');
-  var m=document.createElement('div'); m.className='modal';
+  var m=document.createElement('div'); m.className='modal tallm';
   m.innerHTML='<div class="box tall"><div class="title" style="font-size:1.15rem">✉ Email tenant issues</div><div class="row small" style="margin-block-start:12px"><span class="spin"></span><span>Preparing the email…</span></div></div>';
   document.body.appendChild(m);
   m.addEventListener('click',function(e){ if(e.target.closest('[data-te=cancel]')) m.remove(); });   // only Cancel closes it, so a stray tap can't lose edits
@@ -457,7 +478,7 @@ function tenantEmailDialog(rec){
       '<label class="fld" style="margin-block-start:10px"><span>Closing</span><textarea id="teClose" rows="3">'+esc(dr.closing)+'</textarea></label>'+
       '<label class="fld"><span>Signed (after “Kind regards,”)</span><input type="text" id="teSign" value="'+esc(dr.signoff)+'"></label>';
     h+='<div class="small muted" style="margin-block-end:10px">The inspection summary (property, address, date, type and inspector) is added above the items. No photos or Drive links are shared.</div>'+
-      '<div id="teStatus"></div><div class="row" style="justify-content:flex-end;gap:8px;position:sticky;bottom:-20px;background:var(--surface);padding-block:10px 4px"><button class="btn" type="button" data-te="cancel">Cancel</button><button class="btn primary" type="button" data-te="send">Send</button></div>';
+      '<div id="teStatus"></div><div class="row" style="justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:var(--surface);padding-block:10px 4px"><button class="btn" type="button" data-te="cancel">Cancel</button><button class="btn" type="button" data-te="preview">👁 Preview</button><button class="btn primary" type="button" data-te="send">Send</button></div>';
     $('.box',m).innerHTML=h;
     /* Greeting follows the ticked tenants' first names (preferred names first) until it's typed over */
     function greet(){
@@ -471,22 +492,33 @@ function tenantEmailDialog(rec){
       if(e.target.hasAttribute('data-tt')) greet();
       if(e.target.id==='teNotes') Array.prototype.forEach.call(m.querySelectorAll('.tnote'),function(n){ n.style.display=e.target.checked?'':'none'; });
     });
-    m.addEventListener('click',function(e){
-      var b=e.target.closest('[data-te=send]'); if(!b) return;
-      var st=$('#teStatus',m); function err(t){ st.innerHTML='<div class="small" style="color:var(--bad);margin-block-end:8px">'+t+'</div>'; }
+    /* what's in the form now, as the server wants it (the same for Preview and Send) */
+    function payload(){
       var picked=tenants.filter(function(t,i){ var c=m.querySelector('[data-tt="'+i+'"]'); return c&&c.checked&&t.email; }).map(function(t){ return t.email; });
-      var extra=validEmails($('#teTo',m).value), to=picked.concat(extra), cc=validEmails($('#teCc',m).value), bad=badEmails(extra.concat(cc));
-      var items=[]; Array.prototype.forEach.call(m.querySelectorAll('[data-ti]'),function(c){ if(c.checked) items.push(+c.getAttribute('data-ti')); });
-      if(!to.length) return err('Choose a tenant or enter an email address.');
-      if(bad.length) return err('Check these addresses: '+esc(bad.join(', ')));
-      if(!items.length) return err('Choose at least one item to include.');
+      var extra=validEmails($('#teTo',m).value), cc=validEmails($('#teCc',m).value), notes=$('#teNotes',m), items=[];
+      Array.prototype.forEach.call(m.querySelectorAll('[data-ti]'),function(c){ if(c.checked) items.push(+c.getAttribute('data-ti')); });
+      return {extra:extra, to:picked.concat(extra), cc:cc, bad:badEmails(extra.concat(cc)),
+        req:{inspectionId:rec.id||'',to:picked.concat(extra).join(','),cc:cc.join(','),includeNotes:!!(notes&&notes.checked),items:items,
+          subject:$('#teSubj',m).value,greeting:$('#teGreet',m).value,opening:$('#teOpen',m).value,closing:$('#teClose',m).value,signoff:$('#teSign',m).value}};
+    }
+    m.addEventListener('click',function(e){
+      var b=e.target.closest('[data-te=send],[data-te=preview]'); if(!b) return;
+      var st=$('#teStatus',m); function err(t){ st.innerHTML='<div class="small" style="color:var(--bad);margin-block-end:8px">'+t+'</div>'; }
+      var P=payload();
+      if(P.bad.length) return err('Check these addresses: '+esc(P.bad.join(', ')));
+      if(!P.req.items.length) return err('Choose at least one item to include.');
       if(HAS_GAS && !navigator.onLine) return err('You are offline — try again when you have signal.');
+      if(b.getAttribute('data-te')==='preview'){
+        b.disabled=true; st.innerHTML='<div class="row small" style="margin-block-end:8px"><span class="spin"></span><span>Building the preview…</span></div>';
+        api.previewTenantIssues(P.req).then(function(r){ b.disabled=false; st.innerHTML=''; emailPreview(r); }, function(x){ b.disabled=false; err('Couldn’t build the preview: '+esc(x.message)); });
+        return;
+      }
+      if(!P.to.length) return err('Choose a tenant or enter an email address.');
       b.disabled=true; st.innerHTML='<div class="row small" style="margin-block-end:8px"><span class="spin"></span><span>Sending…</span></div>';
-      try{ localStorage.setItem(key,extra.join(', ')); if(cc.length) localStorage.setItem('fi-email-cc',cc.join(', ')); }catch(x){}
-      var notes=$('#teNotes',m);
-      api.emailTenantIssues({inspectionId:rec.id||'',to:to.join(','),cc:cc.join(','),includeNotes:!!(notes&&notes.checked),items:items,
-          subject:$('#teSubj',m).value,greeting:$('#teGreet',m).value,opening:$('#teOpen',m).value,closing:$('#teClose',m).value,signoff:$('#teSign',m).value}).then(function(r){
-        m.remove(); toast('✉ '+(r&&r.items||items.length)+' tenant item'+((r&&r.items||items.length)===1?'':'s')+' emailed to '+to.join(', '),4000); buzz(20);
+      try{ localStorage.setItem(key,P.extra.join(', ')); if(P.cc.length) localStorage.setItem('fi-email-cc',P.cc.join(', ')); }catch(x){}
+      api.emailTenantIssues(P.req).then(function(r){
+        var n=(r&&r.items)||P.req.items.length;
+        m.remove(); toast('✉ '+n+' tenant item'+(n===1?'':'s')+' emailed to '+P.to.join(', '),4000); buzz(20);
       }).catch(function(x){ b.disabled=false; err('Couldn’t send: '+esc(x.message)); });
     });
   }

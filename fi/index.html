@@ -199,7 +199,9 @@ input[type=checkbox]{accent-color:#7c3aed;width:18px;height:18px;vertical-align:
 #toast{position:fixed;inset-inline:0;inset-block-end:100px;display:flex;justify-content:center;pointer-events:none;z-index:50}
 #toast span{background:var(--grad);color:#fff;font-weight:700;padding:12px 20px;border-radius:99px;max-width:90%;box-shadow:var(--shadow-lg);animation:toastin .4s cubic-bezier(.2,1.4,.4,1)}
 .modal{position:fixed;inset:0;background:var(--overlay);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:30;animation:fade .2s}
-.modal .box.tall{max-width:560px;max-height:calc(100vh - 32px);overflow:auto;-webkit-overflow-scrolling:touch}
+.modal.tallm{align-items:flex-start;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-block:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-bottom))}
+.modal .box.tall{max-width:560px}
+.epv iframe{display:block;width:100%;border:0;border-radius:14px;background:#f4f2ff;min-height:200px}
 .modal .box{background:var(--surface);border-radius:24px;padding:20px;width:100%;max-width:420px;box-shadow:var(--shadow-lg);animation:pop .3s cubic-bezier(.2,1.4,.4,1);font-weight:600}
 .viewer{position:fixed;inset:0;background:rgba(5,3,20,.94);display:flex;align-items:center;justify-content:center;z-index:40;animation:fade .2s}
 .viewer img{max-width:100%;max-height:100%;border-radius:12px;animation:pop .3s}
@@ -256,8 +258,8 @@ input[type=checkbox]{accent-color:#7c3aed;width:18px;height:18px;vertical-align:
 <input type="file" id="camInput" accept="image/*" capture="environment" class="hidden">
 <input type="file" id="galInput" accept="image/*" multiple class="hidden">
 
-<script src="../config.js?v=2026.10.14-6e7f8ef"></script>
-<script src="../api.js?v=2026.10.14-6e7f8ef"></script>
-<script src="app.js?v=2026.10.14-6e7f8ef"></script>
+<script src="../config.js?v=2026.10.14-450612b"></script>
+<script src="../api.js?v=2026.10.14-450612b"></script>
+<script src="app.js?v=2026.10.14-450612b"></script>
 </body>
 </html>

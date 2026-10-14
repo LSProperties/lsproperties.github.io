@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.18.4';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.18.5';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -17,12 +17,12 @@ var ACTIONS = [{k:'tenant',l:'Tenant to action',s:'Tenant to action',i:'🧑'},{
 var ACTION_LABEL = {}; ACTIONS.forEach(function(x){ ACTION_LABEL[x.k]=x.l; });
 var INSPECTION_TYPES = ['Routine','Ingoing (move-in)','Outgoing (move-out)','Pre-listing / maintenance'];
 
-var COMMON = ['Walls – marks, holes, damage','Ceiling','Floor / carpet','Skirting boards','Windows & glass','Curtains / blinds','Doors, handles & locks','Light fittings & bulbs','Power points & switches'];
+var COMMON = ['Walls','Ceiling','Floor / carpet','Skirting boards','Windows & glass','Curtains / blinds','Doors, handles & locks','Light fittings & bulbs','Power points & switches'];
 var LIB = {
   'Bedroom': COMMON.concat(['Wardrobe / storage','Smoke alarm – present & working']),
   'Living / Dining': COMMON.concat(['Heat pump / heater','Smoke alarm – present & working']),
   'Kitchen': COMMON.concat(['Benchtops','Cupboards & drawers','Oven & hob','Rangehood','Sink & taps','Dishwasher (chattel)','Fridge (chattel)']),
-  'Bathroom': ['Walls – marks, holes, damage','Ceiling','Floor / tiles','Skirting boards','Windows & glass','Light fittings & bulbs','Shower / bath','Toilet','Vanity & basin','Mirror & cabinet','Extractor fan','Mould / mildew','Towel rail'],
+  'Bathroom': ['Walls','Ceiling','Floor / tiles','Skirting boards','Windows & glass','Light fittings & bulbs','Shower / bath','Toilet','Vanity & basin','Mirror & cabinet','Extractor fan','Mould / mildew','Towel rail'],
   'Toilet': ['Walls','Floor','Toilet','Hand basin','Light fittings & bulbs','Extractor fan'],
   'Laundry': ['Walls','Floor','Skirting boards','Tub & taps','Washing machine connections','Dryer (chattel)','Light fittings & bulbs'],
   'Hallway / Entry': COMMON.concat(['Smoke alarm – present & working']),
@@ -798,7 +798,7 @@ function fetchPrior(pid){
   return api.getPrior(pid).then(function(pr){ priorCacheSet(pid,pr); return pr; }).catch(function(){ return priorCacheGet(pid); });
 }
 /* Items renamed since an earlier inspection: last time's result is found under the old name too */
-var RENAMED_ITEMS={'Windows & glass':['Windows & glass – intact','Windows & glass - intact'],'Floor / carpet':['Floor / carpet – stains, damage','Floor / carpet - stains, damage'],'Skirting boards':['Skirting boards – clean','Skirting boards - clean']};
+var RENAMED_ITEMS={'Windows & glass':['Windows & glass – intact','Windows & glass - intact'],'Floor / carpet':['Floor / carpet – stains, damage','Floor / carpet - stains, damage'],'Skirting boards':['Skirting boards – clean','Skirting boards - clean'],'Walls':['Walls – marks, holes, damage','Walls - marks, holes, damage']};
 function priorItem(a,it){ var P=S.draft&&S.draft.prior; var p=P&&P.items? P.items[a.name+'|'+it.label] : null;
   if(!p && P && P.items) (RENAMED_ITEMS[it.label]||[]).some(function(old){ return (p=P.items[a.name+'|'+old]); });
   if(p && !p.isIssue && !p.note && (p.key==='ok'||p.key==='na')) return null;   // OK and N/A with no note: nothing to flag

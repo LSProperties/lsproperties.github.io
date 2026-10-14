@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.18.0';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.18.1';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -84,6 +84,14 @@ var api = {
   createInspection:function(meta){ return HAS_GAS? gas('createInspection',meta) : Demo.wait({folderId:'demo',photosFolderId:'demo',folderUrl:''}); },
   uploadPhoto:function(obj){ return HAS_GAS? gas('uploadPhoto',obj) : Demo.wait({fileId:'demo-'+obj.photoId,url:''}); },
   emailReport:function(obj){ return HAS_GAS? gas('emailReport',obj) : Demo.wait({ok:true,sentTo:obj.to,notes:['Demo mode: no email was actually sent.']}); },
+  prepareTenantIssues:function(obj){
+    if(HAS_GAS) return gas('prepareTenantIssues',obj);
+    return Demo.wait({inspectionId:obj.inspectionId,propertyName:'Unit 3, 12 Sample Street',address:'12 Sample Street, Dunedin',date:'14 October 2026',type:'Routine',inspector:'Demo',
+      subject:'Property inspection – items for you to action – Unit 3, 12 Sample Street – 14 Oct 2026',opening:'Thank you for your time during the recent inspection of the property. The following 2 items were identified as needing your attention.',
+      closing:'Please address these items as soon as possible. Your property manager may be in touch if they decide a reinspection is warranted.',signoff:'Demo',
+      items:[{area:'Kitchen',item:'Oven',issue:'Requires cleaning',note:'Grease on the door seal'},{area:'Bathroom',item:'Shower',issue:'Requires cleaning',note:''}],
+      tenants:[{name:'Ana Smith',knownAs:'',email:'ana@example.com',current:true,note:'Current tenant'},{name:'Bo Ng',knownAs:'Bobby',email:'bo@example.com',current:true,note:'Current tenant'},{name:'Cy Old',knownAs:'',email:'cy@example.com',current:false,note:'Tenancy ended 2026-01-31'}]});
+  },
   emailTenantIssues:function(obj){ return HAS_GAS? gas('emailTenantIssues',obj) : Demo.wait({ok:true,sentTo:obj.to,items:0,notes:[]}); },
   getPrior:function(pid){ return HAS_GAS? gas('getPriorFindings',pid) : Promise.resolve(null); },
   deleteInspection:function(pin,ref){
@@ -416,32 +424,72 @@ function emailDialog(rec){
 }
 /* Emails the tenant only the issues marked "Tenant to action" (no Drive links or photos) */
 function tenantEmailDialog(rec){
-  var key='fi-tenant-to-'+(rec.propertyName||''), n=rec.tenantIssues||0;
+  /* The tenant email, prepared on the server, then reviewed and edited here before it's sent:
+     who it goes to (the property's tenants, ticked for current ones), subject, greeting, wording, which items, sign-off. */
+  var key='fi-tenant-to-'+(rec.propertyName||'');
   var m=document.createElement('div'); m.className='modal';
-  m.innerHTML='<div class="box"><div class="title" style="font-size:1.15rem;margin-block-end:4px">✉ Email tenant issues</div>'+
-    '<div class="small muted" style="margin-block-end:4px">'+esc(rec.propertyName||'')+' · '+esc(rec.type||'')+'</div>'+
-    '<div class="small" style="margin-block-end:14px">Sends the inspection summary and the '+(n?n+' ':'')+'item'+(n===1?'':'s')+' marked <b>Tenant to action</b>, asking for '+(n===1?'it':'them')+' to be addressed. No photos or Drive links are included.</div>'+
-    '<label class="fld"><span>Tenant email (separate several with commas)</span><input type="text" id="teTo" inputmode="email" autocomplete="off" value="'+esc(localStorage.getItem(key)||'')+'" placeholder="tenant@example.com"></label>'+
-    '<label class="fld"><span>CC (optional)</span><input type="text" id="teCc" inputmode="email" value="'+esc(localStorage.getItem('fi-email-cc')||'')+'"></label>'+
-    '<label class="fld"><span>Personal message (optional)</span><textarea id="teMsg" placeholder="Added after “Hello,” at the top of the email"></textarea></label>'+
-    '<label class="row small" style="gap:8px;margin-block-end:12px"><input type="checkbox" id="teNotes"> Include the inspector’s notes for each item</label>'+
-    '<div id="teStatus"></div>'+
-    '<div class="row" style="justify-content:flex-end;margin-block-start:6px"><button class="btn" type="button" data-te="cancel">Cancel</button><button class="btn primary" type="button" data-te="send">Send to tenant</button></div></div>';
-  document.body.appendChild(m); setTimeout(function(){ $('#teTo',m).focus(); },60);
-  m.addEventListener('click',function(e){
-    var b=e.target.closest('[data-te]'); if(!b) return;
-    if(b.getAttribute('data-te')==='cancel'){ m.remove(); return; }
-    var to=validEmails($('#teTo',m).value), cc=validEmails($('#teCc',m).value), bad=badEmails(to.concat(cc)), st=$('#teStatus',m);
-    function err(t){ st.innerHTML='<div class="small" style="color:var(--bad);margin-block-end:8px">'+t+'</div>'; }
-    if(!to.length) return err('Enter the tenant’s email address.');
-    if(bad.length) return err('Check these addresses: '+esc(bad.join(', ')));
-    if(!navigator.onLine) return err('You are offline — try again when you have signal.');
-    b.disabled=true; st.innerHTML='<div class="row small" style="margin-block-end:8px"><span class="spin"></span><span>Sending…</span></div>';
-    try{ localStorage.setItem(key,to.join(', ')); }catch(x){}
-    api.emailTenantIssues({inspectionId:rec.id||'',to:to.join(','),cc:cc.join(','),message:$('#teMsg',m).value.trim(),includeNotes:$('#teNotes',m).checked}).then(function(r){
-      m.remove(); toast('✉ '+(r&&r.items||'')+' tenant item'+(r&&r.items===1?'':'s')+' emailed to '+to.join(', '),4000); buzz(20);
-    }).catch(function(x){ b.disabled=false; err('Couldn’t send: '+esc(x.message)); });
+  m.innerHTML='<div class="box tall"><div class="title" style="font-size:1.15rem">✉ Email tenant issues</div><div class="row small" style="margin-block-start:12px"><span class="spin"></span><span>Preparing the email…</span></div></div>';
+  document.body.appendChild(m);
+  m.addEventListener('click',function(e){ if(e.target.closest('[data-te=cancel]')) m.remove(); });   // only Cancel closes it, so a stray tap can't lose edits
+  if(HAS_GAS && !navigator.onLine){ $('.box',m).innerHTML='<div class="title">✉ Email tenant issues</div><div class="small" style="margin-block:10px 14px">You are offline. Preparing and sending the email needs signal.</div><div class="row" style="justify-content:flex-end"><button class="btn" type="button" data-te="cancel">Close</button></div>'; return; }
+  api.prepareTenantIssues({inspectionId:rec.id||''}).then(function(dr){ draw(dr); }, function(x){
+    $('.box',m).innerHTML='<div class="title">✉ Email tenant issues</div><div class="small" style="color:var(--bad);margin-block:10px 14px">Couldn’t prepare the email: '+esc(x.message)+'</div><div class="row" style="justify-content:flex-end"><button class="btn" type="button" data-te="cancel">Close</button></div>';
   });
+  function draw(dr){
+    var tenants=dr.tenants||[], greetEdited=false;
+    var others=validEmails(localStorage.getItem(key)||'').filter(function(e){ return !tenants.some(function(t){ return t.email.toLowerCase()===e.toLowerCase(); }); });
+    var h='<div class="title" style="font-size:1.15rem">✉ Email tenant issues</div><div class="small muted" style="margin-block-end:12px">'+esc(dr.propertyName)+' · '+esc(dr.type)+' · '+esc(dr.date)+'</div>';
+    h+='<div class="sasec small" style="font-weight:800;margin-block-end:6px">To</div>';
+    if(tenants.length) h+=tenants.map(function(t,i){ var who=t.name+(t.knownAs&&t.knownAs!==t.name?' ('+t.knownAs+')':'');
+      return '<label class="row small" style="gap:10px;padding:8px 10px;border:1.5px solid var(--line);border-radius:12px;margin-block-end:6px;'+(t.email?'cursor:pointer':'opacity:.55')+'">'+
+        '<input type="checkbox" data-tt="'+i+'"'+(t.current&&t.email?' checked':'')+(t.email?'':' disabled')+'><span class="grow"><b>'+esc(who||t.email)+'</b><br><span class="muted">'+esc(t.email||'No email on file')+' · '+esc(t.note||'')+'</span></span></label>'; }).join('');
+    else h+='<div class="small muted" style="margin-block-end:6px">No tenants are recorded for this property'+(HAS_GAS&&!window.RENTALS_CONFIG?' (the Rentals app lists them)':'')+'. Enter their email below.</div>';
+    h+='<label class="fld"><span>'+(tenants.length?'Other email addresses (optional)':'Tenant email (separate several with commas)')+'</span><input type="text" id="teTo" inputmode="email" autocomplete="off" value="'+esc(others.join(', '))+'" placeholder="tenant@example.com"></label>'+
+      '<label class="fld"><span>CC (optional)</span><input type="text" id="teCc" inputmode="email" value="'+esc(localStorage.getItem('fi-email-cc')||'')+'"></label>';
+    h+='<div class="sasec small" style="font-weight:800;margin-block:6px">The email</div>'+
+      '<label class="fld"><span>Subject</span><input type="text" id="teSubj" value="'+esc(dr.subject)+'"></label>'+
+      '<label class="fld"><span>Greeting</span><input type="text" id="teGreet" value=""></label>'+
+      '<label class="fld"><span>Opening</span><textarea id="teOpen" rows="3">'+esc(dr.opening)+'</textarea></label>'+
+      '<div class="small" style="font-weight:800;margin-block:4px 6px">Items for them to action</div>'+
+      dr.items.map(function(it,i){ return '<label class="row small" style="gap:10px;align-items:flex-start;padding:6px 0;border-block-end:1px solid var(--line);cursor:pointer"><input type="checkbox" data-ti="'+i+'" checked style="margin-block-start:3px">'+
+        '<span class="grow"><b>'+esc(it.area)+'</b> — '+esc(it.item)+' · <span class="muted">'+esc(it.issue)+'</span>'+(it.note?'<span class="tnote muted" style="display:none"><br>'+esc(it.note)+'</span>':'')+'</span></label>'; }).join('')+
+      (dr.items.some(function(it){ return it.note; })?'<label class="row small" style="gap:8px;margin-block:8px 4px"><input type="checkbox" id="teNotes"> Include the inspector’s notes for each item</label>':'')+
+      '<label class="fld" style="margin-block-start:10px"><span>Closing</span><textarea id="teClose" rows="3">'+esc(dr.closing)+'</textarea></label>'+
+      '<label class="fld"><span>Signed (after “Kind regards,”)</span><input type="text" id="teSign" value="'+esc(dr.signoff)+'"></label>';
+    h+='<div class="small muted" style="margin-block-end:10px">The inspection summary (property, address, date, type and inspector) is added above the items. No photos or Drive links are shared.</div>'+
+      '<div id="teStatus"></div><div class="row" style="justify-content:flex-end;gap:8px;position:sticky;bottom:-20px;background:var(--surface);padding-block:10px 4px"><button class="btn" type="button" data-te="cancel">Cancel</button><button class="btn primary" type="button" data-te="send">Send</button></div>';
+    $('.box',m).innerHTML=h;
+    /* Greeting follows the ticked tenants' first names (preferred names first) until it's typed over */
+    function greet(){
+      if(greetEdited) return;
+      var names=tenants.filter(function(t,i){ var c=m.querySelector('[data-tt="'+i+'"]'); return c&&c.checked; }).map(function(t){ return String(t.knownAs||t.name||'').trim().split(/\s+/)[0]; }).filter(Boolean);
+      $('#teGreet',m).value=names.length?'Hi '+(names.length<2?names[0]:names.slice(0,-1).join(', ')+' and '+names[names.length-1])+',':'Hello,';
+    }
+    greet();
+    m.addEventListener('input',function(e){ if(e.target.id==='teGreet') greetEdited=true; });
+    m.addEventListener('change',function(e){
+      if(e.target.hasAttribute('data-tt')) greet();
+      if(e.target.id==='teNotes') Array.prototype.forEach.call(m.querySelectorAll('.tnote'),function(n){ n.style.display=e.target.checked?'':'none'; });
+    });
+    m.addEventListener('click',function(e){
+      var b=e.target.closest('[data-te=send]'); if(!b) return;
+      var st=$('#teStatus',m); function err(t){ st.innerHTML='<div class="small" style="color:var(--bad);margin-block-end:8px">'+t+'</div>'; }
+      var picked=tenants.filter(function(t,i){ var c=m.querySelector('[data-tt="'+i+'"]'); return c&&c.checked&&t.email; }).map(function(t){ return t.email; });
+      var extra=validEmails($('#teTo',m).value), to=picked.concat(extra), cc=validEmails($('#teCc',m).value), bad=badEmails(extra.concat(cc));
+      var items=[]; Array.prototype.forEach.call(m.querySelectorAll('[data-ti]'),function(c){ if(c.checked) items.push(+c.getAttribute('data-ti')); });
+      if(!to.length) return err('Choose a tenant or enter an email address.');
+      if(bad.length) return err('Check these addresses: '+esc(bad.join(', ')));
+      if(!items.length) return err('Choose at least one item to include.');
+      if(HAS_GAS && !navigator.onLine) return err('You are offline — try again when you have signal.');
+      b.disabled=true; st.innerHTML='<div class="row small" style="margin-block-end:8px"><span class="spin"></span><span>Sending…</span></div>';
+      try{ localStorage.setItem(key,extra.join(', ')); if(cc.length) localStorage.setItem('fi-email-cc',cc.join(', ')); }catch(x){}
+      var notes=$('#teNotes',m);
+      api.emailTenantIssues({inspectionId:rec.id||'',to:to.join(','),cc:cc.join(','),includeNotes:!!(notes&&notes.checked),items:items,
+          subject:$('#teSubj',m).value,greeting:$('#teGreet',m).value,opening:$('#teOpen',m).value,closing:$('#teClose',m).value,signoff:$('#teSign',m).value}).then(function(r){
+        m.remove(); toast('✉ '+(r&&r.items||items.length)+' tenant item'+((r&&r.items||items.length)===1?'':'s')+' emailed to '+to.join(', '),4000); buzz(20);
+      }).catch(function(x){ b.disabled=false; err('Couldn’t send: '+esc(x.message)); });
+    });
+  }
 }
 
 /* ================= Delete a submitted inspection (admin) ================= */
@@ -832,7 +880,7 @@ function viewInspRender(id){
     '<div style="margin-block-start:8px"><span class="pill">'+s.done+'/'+s.total+' checked</span><span class="pill'+(s.issues?' issue':' done')+'">'+s.issues+' issues</span>'+(s.photos?'<span class="pill">📷 '+s.photos+'</span>':'')+'</div>'+
     '<div class="row wrap" style="margin-block-start:12px">'+(d.reportUrl?'<a class="btn sm" target="_blank" rel="noopener" href="'+esc(d.reportUrl)+'">📄 Report</a>':'')+
       (HAS_GAS?'<button class="btn sm ghost" type="button" data-act="email" data-id="'+esc(id)+'" data-f="'+esc(d.folderUrl||'')+'">✉ Email full report</button>':'')+
-      (tn&&HAS_GAS?'<button class="btn sm ghost" type="button" data-act="email-tenant" data-id="'+esc(id)+'">🧑 Email tenant issues ('+tn+')</button>':'')+
+      (tn?'<button class="btn sm ghost" type="button" data-act="email-tenant" data-id="'+esc(id)+'">🧑 Email tenant issues ('+tn+')</button>':'')+
       (d.folderUrl?'<a class="btn sm ghost" target="_blank" rel="noopener" href="'+esc(d.folderUrl)+'">📁 Drive folder</a>':'')+'</div>'+
     '<div class="row wrap" style="margin-block-start:8px">'+(HAS_GAS?'<button class="btn sm" type="button" data-act="edit-insp" data-id="'+esc(id)+'">✏️ Edit (admin PIN)</button>':'')+
       '<button class="btn sm danger" type="button" data-act="del-insp" data-id="'+esc(id)+'" data-f="'+esc(d.folderUrl||rec.folderUrl||'')+'">🗑 Delete</button></div></div>';

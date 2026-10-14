@@ -148,33 +148,63 @@
     });
     document.body.appendChild(b);
   });
-  /* iPhone / iPad: Safari can't offer the install itself, so show how (Share > Add to Home Screen). Only in the browser,
-     never in the installed app. Matters more here: only the installed app keeps inspections and photos safely. */
+  /* iPhone / iPad: Safari can't offer the install itself, so show how, as an iOS-style sheet (Share > Add to Home
+     Screen). Only in the browser, never in the installed app. Matters more here: only the installed app keeps
+     inspections and photos safely. */
   (function () {
     var ua = navigator.userAgent || '', ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
     var installed = !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches));
     if (!ios || installed) return;
     var until = 0; try { until = +localStorage.getItem(SNOOZE) || 0; } catch (x) {}
     if (Date.now() < until) return;
+    var CSS =
+      '#iosSheetWrap{position:fixed;inset:0;z-index:99998;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0);transition:background .3s}' +
+      '#iosSheetWrap.on{background:rgba(0,0,0,.25)}' +
+      '#iosSheet{--bg:rgba(242,242,247,.86);--card:rgba(255,255,255,.92);--label:#000;--sub:rgba(60,60,67,.62);--sep:rgba(60,60,67,.18);--fill:rgba(120,120,128,.16);' +
+      'width:min(100%,520px);margin:0 8px calc(8px + env(safe-area-inset-bottom));border-radius:22px;padding:8px 16px 16px;color:var(--label);background:var(--bg);' +
+      '-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);box-shadow:0 12px 40px rgba(0,0,0,.25);' +
+      'font:17px/1.35 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;letter-spacing:-.01em;transform:translateY(110%);transition:transform .38s cubic-bezier(.2,.9,.25,1)}' +
+      '#iosSheetWrap.on #iosSheet{transform:none}' +
+      '@media (prefers-color-scheme:dark){#iosSheet{--bg:rgba(28,28,30,.86);--card:rgba(44,44,46,.9);--label:#fff;--sub:rgba(235,235,245,.6);--sep:rgba(84,84,88,.6);--fill:rgba(118,118,128,.24)}}' +
+      '#iosSheet .grab{width:36px;height:5px;border-radius:3px;background:var(--fill);margin:0 auto 10px}' +
+      '#iosSheet .head{display:flex;gap:12px;align-items:center;margin-bottom:14px}' +
+      '#iosSheet .head img{width:52px;height:52px;border-radius:12px;box-shadow:0 0 0 .5px var(--sep)}' +
+      '#iosSheet .name{font-weight:600;font-size:17px}#iosSheet .site{font-size:13px;color:var(--sub)}' +
+      '#iosSheet .x{margin-left:auto;align-self:flex-start;width:30px;height:30px;border-radius:50%;border:0;background:var(--fill);color:var(--sub);font:600 15px/30px -apple-system,system-ui;padding:0;cursor:pointer}' +
+      '#iosSheet h2{font-size:20px;font-weight:700;margin:0 0 4px;letter-spacing:-.02em}#iosSheet .lead{font-size:15px;color:var(--sub);margin:0 0 14px}' +
+      '#iosSheet ol{list-style:none;margin:0 0 12px;padding:0;background:var(--card);border-radius:12px;overflow:hidden}' +
+      '#iosSheet li{display:flex;gap:12px;align-items:center;padding:11px 14px;font-size:16px;position:relative}' +
+      '#iosSheet li+li:before{content:"";position:absolute;top:0;left:58px;right:0;height:.5px;background:var(--sep)}' +
+      '#iosSheet .ic{flex:none;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--fill)}' +
+      '#iosSheet .n{color:var(--sub);font-size:13px;margin-right:2px}' +
+      '#iosSheet .later{display:block;width:100%;border:0;background:none;color:#0a84ff;font:17px -apple-system,system-ui;padding:8px;cursor:pointer}';
+    var SHARE = '<svg width="18" height="22" viewBox="0 0 18 22" aria-hidden="true"><path d="M9 1.5v12M4.8 5.7 9 1.5l4.2 4.2" fill="none" stroke="#0a84ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="M6 9H3.6A1.6 1.6 0 0 0 2 10.6v7.8A1.6 1.6 0 0 0 3.6 20h10.8a1.6 1.6 0 0 0 1.6-1.6v-7.8A1.6 1.6 0 0 0 14.4 9H12" fill="none" stroke="#0a84ff" stroke-width="2" stroke-linecap="round"/></svg>';
+    var PLUS = '<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><rect x="1.5" y="1.5" width="17" height="17" rx="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/>' +
+      '<path d="M10 6v8M6 10h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
     function show() {
-      if (document.getElementById('installBar')) return;
-      var share = '<svg width="18" height="22" viewBox="0 0 18 22" aria-label="Share" style="vertical-align:-4px"><path d="M9 1v13M4.5 5.5 9 1l4.5 4.5" fill="none" stroke="#0a84ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
-        '<path d="M6 9H3.5A1.5 1.5 0 0 0 2 10.5v8A1.5 1.5 0 0 0 3.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 14.5 9H12" fill="none" stroke="#0a84ff" stroke-width="2" stroke-linecap="round"/></svg>';
-      var b = document.createElement('div'); b.id = 'installBar'; b.setAttribute('role', 'dialog'); b.setAttribute('aria-label', 'Add Rentals to your Home Screen');
-      b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:99998;background:#fff;color:#0f172a;' +
-        'border:1px solid #e2e8f0;border-radius:16px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.22);font:15px/1.45 -apple-system,system-ui,sans-serif';
-      b.innerHTML = '<div style="display:flex;gap:12px;align-items:flex-start"><img src="' + (APP ? '../' : '') + 'icon-180.png" alt="" width="44" height="44" style="border-radius:10px;flex:none">' +
-        '<div style="flex:1"><b>Add Rentals to your Home Screen</b><br>Tap ' + share + ' <b>Share</b> (in Safari’s toolbar, or under <b>•••</b>), then <b>Add to Home Screen</b>.' +
-        '<div style="color:#475569;font-size:.86rem;margin-top:4px">Use the app from its icon: only the installed app keeps your inspections and photos safely on this phone.</div></div></div>' +
-        '<div style="text-align:right;margin-top:8px"><button type="button" data-inst="no" style="font:inherit;padding:7px 14px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;color:#0f172a">Not now</button></div>';
-      b.addEventListener('click', function (ev) {
-        if (!ev.target.closest('[data-inst]')) return;
+      if (document.getElementById('iosSheetWrap') || document.getElementById('installBar')) return;
+      var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+      var icon = (APP ? '../' : '') + 'icon-180.png';
+      var w = document.createElement('div'); w.id = 'iosSheetWrap';
+      w.innerHTML = '<div id="iosSheet" role="dialog" aria-modal="true" aria-labelledby="iosSheetTitle"><div class="grab"></div>' +
+        '<div class="head"><img src="' + icon + '" alt=""><div><div class="name">Rentals</div><div class="site">' + location.host + '</div></div>' +
+        '<button type="button" class="x" data-sheet="close" aria-label="Close">✕</button></div>' +
+        '<h2 id="iosSheetTitle">Add to Home Screen</h2>' +
+        '<p class="lead">Use Rentals from its own icon. Only the installed app keeps your inspections and photos safely on this phone.</p>' +
+        '<ol><li><span class="ic">' + SHARE + '</span><span><span class="n">1</span> Tap <b>Share</b> in Safari&#8217;s toolbar <span style="color:var(--sub)">(or <b>•••</b> first)</span></span></li>' +
+        '<li><span class="ic" style="color:var(--label)">' + PLUS + '</span><span><span class="n">2</span> Choose <b>Add to Home Screen</b></span></li>' +
+        '<li><span class="ic" style="background:none"><img src="' + icon + '" alt="" width="32" height="32" style="border-radius:8px"></span><span><span class="n">3</span> Open <b>Rentals</b> from your Home Screen</span></li></ol>' +
+        '<button type="button" class="later" data-sheet="later">Not now</button></div>';
+      function close() {
         try { localStorage.setItem(SNOOZE, String(Date.now() + 30 * 864e5)); } catch (x) {}
-        b.remove();
-      });
-      document.body.appendChild(b);
+        w.classList.remove('on'); setTimeout(function () { w.remove(); }, 400);
+      }
+      w.addEventListener('click', function (ev) { if (ev.target === w || ev.target.closest('[data-sheet]')) close(); });
+      document.body.appendChild(w);
+      requestAnimationFrame(function () { requestAnimationFrame(function () { w.classList.add('on'); }); });
     }
-    if (document.body) show(); else document.addEventListener('DOMContentLoaded', show);
+    if (document.body) setTimeout(show, 600); else document.addEventListener('DOMContentLoaded', function () { setTimeout(show, 600); });
   })();
   window.addEventListener('appinstalled', function () { var b = document.getElementById('installBar'); if (b) b.remove(); installEvt = null; });
 

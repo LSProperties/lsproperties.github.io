@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.15.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.15.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1279,6 +1279,8 @@ function setupHome(){
       '<div class="small muted">Who signs tenancy agreements, their contact details and address for service</div>'+
       '<div style="margin-block-start:6px"><span class="pill">'+lls.length+' landlord'+(lls.length===1?'':'s')+'</span>'+(noAddr?'<span class="pill st-warn">'+noAddr+' without an address for service</span>':'')+'</div></div><span class="chev">\u203A</span></div></div>';
   var tm=termsMaster(), tdiff=act.filter(function(p){ return !sameTerms(p.additionalTerms,tm); }).length;
+  if(window.RentalsPush) h+='<div class="card tap" data-act="setup-notify"><div class="row"><div class="tile t1">\uD83D\uDD14</div><div class="grow"><div class="title">Notifications</div>'+
+    '<div class="small muted">Get told on this phone when a form is submitted, an agreement is signed or an inspection is in</div></div><span class="chev">\u203A</span></div></div>';
   h+='<div class="card tap" data-act="setup-questions"><div class="row"><div class="tile t2">\uD83D\uDCDD</div><div class="grow"><div class="title">Screening questions</div>'+
     '<div class="small muted">The questions you ask each referee, by referee type, and the red flags to listen for</div></div><span class="chev">\u203A</span></div></div>';
   h+='<div class="card tap" data-act="setup-terms"><div class="row"><div class="tile t4">\uD83D\uDCDC</div><div class="grow"><div class="title">Additional terms</div>'+
@@ -1861,6 +1863,12 @@ VIEWS.setupQuestions = function(){
   var d=qsDirty();
   setFooter('<div class="row" style="gap:8px;width:100%"><span class="pill st-warn" id="qsUnsaved" style="align-self:center'+(d?'':';display:none')+'">Unsaved</span>'+
     '<button class="btn primary grow" type="button" data-act="qs-save" id="qsSave"'+(d?'':' disabled')+'>Save questions</button></div>');
+};
+/* Setup > Notifications (Rentals app only: the panel comes from ../push.js) */
+VIEWS.notify = function(){
+  setTitle('Notifications'); setFooter('');
+  $('#app').innerHTML='<div id="rpNotify"></div>';
+  if(window.RentalsPush) window.RentalsPush.mount($('#rpNotify'));
 };
 VIEWS.setupTerms = function(){
   setTitle('Additional terms');
@@ -3313,6 +3321,7 @@ document.addEventListener('click',function(e){
   if(act==='photo-id') return fileView(api.tmPhotoIdFile(id,+t.getAttribute('data-i')),t.getAttribute('data-n')||'Photo ID','');
   if(act==='setup-props') return go('setupProps');
   if(act==='setup-landlords') return go('setupLandlords');
+  if(act==='setup-notify') return go('notify');
   if(act==='setup-questions'){ S.qsE=null; return go('setupQuestions'); }
   if(act==='qs-toggle'){ S.qsOpen[id]=!S.qsOpen[id]; return keepScroll(render); }
   if(act==='qs-kind'){ var qk=S.qsE[+id]; qk.kind=t.getAttribute('data-k'); if(qk.kind==='Red flags') qk.usedFor=[]; return keepScroll(render); }

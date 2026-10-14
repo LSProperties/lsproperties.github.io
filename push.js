@@ -1,79 +1,87 @@
-/* Notifications (home screen > Notifications): turn them on for this phone or computer, and choose what to be told
-   about. Sent by the Rentals API (Push.gs). On iPhone they work only in the app opened from the Home Screen icon
-   (iOS 16.4 or later), and permission has to be asked from a tap. */
+/* Notifications, shown in Setup in both apps (Tenancies > Setup > Notifications, Inspections > Setup > Notifications):
+   turn them on for this phone or computer, and tick what to be told about, for your own forms and agreements and for
+   everyone's. Sent by the Rentals API (Push.gs). On iPhone they only work in the app opened from the Home Screen icon
+   (iOS 16.4 or later), and permission has to be asked from a tap. Uses the page's own card and button styles.
+   window.RentalsPush.mount(element) draws it; the pages show the Setup card only when this file is loaded. */
 (function () {
-  var box = document.getElementById('pushBox'); if (!box) return;
-  var call = window.rentalsCall, $ = function (id) { return document.getElementById(id); };
-  var CATS = [['applications', 'An application form is submitted', 'forms you sent', 'anyone’s forms'],
-              ['signing', 'Someone signs an agreement', 'agreements you sent, with who is left to sign', 'anyone’s agreements, with who is left to sign'],
-              ['toSign', 'An agreement is ready for me to sign', ''],
-              ['inspections', 'An inspection is submitted', 'by someone else']];
+  var call = window.rentalsCall;
+  // [label, note, mine key, everyone's key]: a missing key = no box in that column
+  var ROWS = [['An application form is submitted', '', 'applications', 'applicationsAll'],
+              ['Someone signs or declines an agreement', 'Says who is still to sign', 'signing', 'signingAll'],
+              ['An agreement is ready for me to sign', '', 'toSign', ''],
+              ['An inspection is submitted', 'By someone else', '', 'inspections']];
   var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   var can = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
-  var info = null, loaded = false;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function key(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; var b = atob(s), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; }
   function same(a, b) { if (!a || !b || a.byteLength !== b.byteLength) return false; a = new Uint8Array(a); for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
-  function msg(t, bad) { var m = $('pushMsg'); m.textContent = t || ''; m.style.color = bad ? '#b42318' : ''; }
-  function sub() { return navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }); }
+  // the app's service worker (registered by api.js); null if it isn't there, so nothing waits for ever
+  function reg() { return navigator.serviceWorker.getRegistration('../').then(function (r) { return r || navigator.serviceWorker.getRegistration(); }); }
+  function sub() { return reg().then(function (r) { return r ? r.pushManager.getSubscription() : null; }); }
 
-  function draw() {
-    var on = info && info.thisDevice;
-    $('pushState').textContent = !can ? 'This browser can’t show notifications' + (/iPhone|iPad/.test(navigator.userAgent) && !standalone ? '. Open Rentals from its Home Screen icon (iOS 16.4 or later).' : '.')
-      : Notification.permission === 'denied' ? 'Notifications are blocked for Rentals. Allow them in Settings › Notifications › Rentals.'
-      : on ? 'On for this ' + (/iPhone/.test(navigator.userAgent) ? 'iPhone' : 'device') + '.' : 'Off for this device.';
-    $('pushOn').hidden = !can || on || Notification.permission === 'denied';
-    $('pushOff').hidden = !on; $('pushTest').hidden = !on;
-    var all = info && info.prefs.scope === 'all';
-    $('pushPrefs').innerHTML = info ? '<div class="seg" role="radiogroup" aria-label="Whose applications and agreements">' +
-      [['mine', 'Only mine'], ['all', 'Everyone’s']].map(function (o) { return '<label><input type="radio" name="pushScope" value="' + o[0] + '"' + ((all ? 'all' : 'mine') === o[0] ? ' checked' : '') + '> ' + o[1] + '</label>'; }).join('') + '</div><p class="small" style="margin:10px 0 4px">Tell me when:</p>' +
-      CATS.map(function (c) {
-        var note = all && c[3] ? c[3] : c[2];
-        return '<label class="chk"><input type="checkbox" data-cat="' + c[0] + '"' + (info.prefs[c[0]] ? ' checked' : '') + '> <span>' + c[1] +
-          (note ? '<br><span class="small">' + note + '</span>' : '') + '</span></label>';
-      }).join('') : '';
-  }
-  function load() {
-    loaded = true;
-    (can ? sub() : Promise.resolve(null)).then(function (s) { return call('auth', 'pushInfo', [], { endpoint: s ? s.endpoint : '' }); })
-      .then(function (r) { info = r; draw(); }, function (e) { msg(e.message, true); });
-  }
-  box.addEventListener('toggle', function () { if (box.open && !loaded) load(); });
-
-  $('pushOn').addEventListener('click', function () {
-    var b = this; b.disabled = true; msg('Turning on…');
-    Notification.requestPermission().then(function (p) {
-      if (p !== 'granted') throw new Error(p === 'denied' ? 'Notifications are blocked. Allow them in Settings › Notifications › Rentals.' : 'Notifications weren’t allowed.');
-      return navigator.serviceWorker.ready;
-    }).then(function (reg) {
-      var want = key(info.publicKey);
-      return reg.pushManager.getSubscription().then(function (old) {
-        // an earlier subscription made with another key (the test) has to go first
-        if (old && !same(old.options && old.options.applicationServerKey, want)) return old.unsubscribe().then(function () { return null; });
-        return old;
-      }).then(function (old) { return old || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want }); });
-    }).then(function (s) { return call('auth', 'pushSubscribe', [], { sub: s.toJSON() }); })
-      .then(function (r) { info = r; info.thisDevice = true; draw(); msg('Notifications are on.'); }, function (e) { msg(e.message, true); })
-      .then(function () { b.disabled = false; });
-  });
-  $('pushOff').addEventListener('click', function () {
-    var b = this; b.disabled = true;
-    sub().then(function (s) { var ep = s ? s.endpoint : ''; return (s ? s.unsubscribe() : Promise.resolve()).then(function () { return call('auth', 'pushUnsubscribe', [], { endpoint: ep }); }); })
-      .then(function (r) { info = r; info.thisDevice = false; draw(); msg('Notifications are off for this device.'); }, function (e) { msg(e.message, true); })
-      .then(function () { b.disabled = false; });
-  });
-  $('pushTest').addEventListener('click', function () {
-    var b = this; b.disabled = true; msg('Sending…');
-    call('auth', 'pushTest').then(function (r) { msg(r.sent ? 'Sent. It should appear in a few seconds.' : 'It didn’t go through. Turn notifications off and on again.', !r.sent); }, function (e) { msg(e.message, true); })
-      .then(function () { b.disabled = false; });
-  });
-  $('pushPrefs').addEventListener('change', function (e) {
-    if (e.target.name === 'pushScope') {
-      var was = info.prefs.scope; info.prefs.scope = e.target.value; draw();
-      call('auth', 'pushPrefs', [], { prefs: { scope: e.target.value } }).then(function () { msg('Saved.'); }, function (x) { info.prefs.scope = was; draw(); msg(x.message, true); });
-      return;
+  function mount(el) {
+    var info = null;
+    el.innerHTML = '<div class="card"><div class="small muted">Loading…</div></div>';
+    function msg(t, bad) { var m = el.querySelector('[data-rp-msg]'); if (m) { m.textContent = t || ''; m.style.color = bad ? 'var(--bad, #b42318)' : ''; } }
+    function draw(note, bad) {
+      var on = info.thisDevice, blocked = can && Notification.permission === 'denied';
+      var state = !can ? 'This browser can’t show notifications' + (/iPhone|iPad/.test(navigator.userAgent) && !standalone ? '. Open Rentals from its Home Screen icon (iOS 16.4 or later).' : '.')
+        : blocked ? 'Notifications are blocked for Rentals. Allow them in Settings › Notifications › Rentals, then come back here.'
+        : on ? 'On for this ' + (/iPhone/.test(navigator.userAgent) ? 'iPhone' : 'device') + '.' : 'Off for this device.';
+      var cell = function (k) {
+        return '<td style="text-align:center;padding:10px 4px">' + (k ? '<input type="checkbox" data-rp="' + k + '"' + (info.prefs[k] ? ' checked' : '') +
+          ' style="width:22px;height:22px;min-width:0;margin:0;accent-color:var(--brand, #0f766e)" aria-label="' + (/All$|^inspections$/.test(k) ? 'Everyone’s' : 'Mine') + '">' : '<span class="muted">—</span>') + '</td>';
+      };
+      el.innerHTML =
+        '<div class="card"><div class="title">This device</div><div class="small muted" style="margin-block:4px 10px">' + esc(state) + '</div>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
+          (can && !on && !blocked ? '<button class="btn primary" type="button" data-rp-act="on">Turn on notifications</button>' : '') +
+          (on ? '<button class="btn" type="button" data-rp-act="test">Send a test</button><button class="btn" type="button" data-rp-act="off">Turn off</button>' : '') +
+          '</div></div>' +
+        '<div class="card"><div class="title">Tell me when</div>' +
+          '<div class="small muted" style="margin-block:4px 6px"><b>Mine</b> = forms and agreements you sent. <b>Everyone’s</b> = the ones other people sent too. Applies to all your devices.</div>' +
+          '<table style="width:100%;border-collapse:collapse"><thead><tr><th></th><th class="small" style="width:64px;font-weight:700">Mine</th><th class="small" style="width:84px;font-weight:700">Everyone’s</th></tr></thead><tbody>' +
+          ROWS.map(function (r) {
+            return '<tr style="border-block-start:1px solid var(--line, #e2e8f0)"><td style="padding:10px 4px 10px 0">' + esc(r[0]) + (r[1] ? '<div class="small muted">' + esc(r[1]) + '</div>' : '') + '</td>' + cell(r[2]) + cell(r[3]) + '</tr>';
+          }).join('') + '</tbody></table></div>' +
+        '<div class="small" data-rp-msg role="status" style="margin:4px 6px 12px"></div>';
+      if (note) msg(note, bad);
     }
-    var c = e.target.getAttribute('data-cat'); if (!c) return;
-    var p = {}; p[c] = e.target.checked; info.prefs[c] = e.target.checked;
-    call('auth', 'pushPrefs', [], { prefs: p }).then(function () { msg('Saved.'); }, function (x) { e.target.checked = !e.target.checked; info.prefs[c] = e.target.checked; msg(x.message, true); });
-  });
+    function busy(b, p) { if (b) b.disabled = true; return p.then(function (r) { if (b) b.disabled = false; return r; }, function (e) { if (b) b.disabled = false; throw e; }); }
+
+    el.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('[data-rp-act]'); if (!b) return;
+      var act = b.getAttribute('data-rp-act');
+      if (act === 'on') {
+        msg('Turning on…');
+        busy(b, Notification.requestPermission().then(function (p) {
+          if (p !== 'granted') throw new Error(p === 'denied' ? 'Notifications are blocked. Allow them in Settings › Notifications › Rentals.' : 'Notifications weren’t allowed.');
+          return reg();
+        }).then(function (reg) {
+          if (!reg) throw new Error('The app isn’t fully loaded. Close Rentals, open it again and try once more.');
+          var want = key(info.publicKey);
+          return reg.pushManager.getSubscription().then(function (old) {
+            // a subscription made with another key (the earlier test) has to go first
+            if (old && !same(old.options && old.options.applicationServerKey, want)) return old.unsubscribe().then(function () { return null; });
+            return old;
+          }).then(function (old) { return old || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want }); });
+        }).then(function (s) { return call('auth', 'pushSubscribe', [], { sub: s.toJSON() }); }))
+          .then(function (r) { info = r; info.thisDevice = true; draw('Notifications are on.'); }, function (x) { msg(x.message, true); });
+      } else if (act === 'off') {
+        busy(b, sub().then(function (s) { var ep = s ? s.endpoint : ''; return (s ? s.unsubscribe() : Promise.resolve()).then(function () { return call('auth', 'pushUnsubscribe', [], { endpoint: ep }); }); }))
+          .then(function (r) { info = r; info.thisDevice = false; draw('Notifications are off for this device.'); }, function (x) { msg(x.message, true); });
+      } else if (act === 'test') {
+        msg('Sending…');
+        busy(b, call('auth', 'pushTest')).then(function (r) { msg(r.sent ? 'Sent. It should appear in a few seconds.' : 'It didn’t go through. Turn notifications off and on again.', !r.sent); }, function (x) { msg(x.message, true); });
+      }
+    });
+    el.addEventListener('change', function (e) {
+      var k = e.target.getAttribute && e.target.getAttribute('data-rp'); if (!k) return;
+      var v = e.target.checked, p = {}; p[k] = v; info.prefs[k] = v;
+      call('auth', 'pushPrefs', [], { prefs: p }).then(function () { msg('Saved.'); }, function (x) { e.target.checked = !v; info.prefs[k] = !v; msg(x.message, true); });
+    });
+    (can ? sub() : Promise.resolve(null)).then(function (s) { return call('auth', 'pushInfo', [], { endpoint: s ? s.endpoint : '' }); })
+      .then(function (r) { info = r; draw(); }, function (x) { el.innerHTML = '<div class="card"><div class="small" style="color:var(--bad, #b42318)">' + esc(x.message) + '</div></div>'; });
+  }
+  window.RentalsPush = { mount: mount };
 })();

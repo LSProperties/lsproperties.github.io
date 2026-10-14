@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.18.6';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.18.7';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -895,10 +895,17 @@ function submittedListHtml(){
 function setupTabHtml(){
   var h='<div class="card tap" data-act="admin"><div class="row"><div class="tile t1">🏠</div><div class="grow"><div class="title">Manage properties</div><div class="small muted">Areas and checks for each property, and the letting details (admin PIN)</div></div><span class="chev">›</span></div></div>';
   h+='<div class="card"><label class="fld" style="margin:0"><span>Your name as inspector</span><input type="text" id="setInspector" value="'+esc(localStorage.getItem('fi-inspector')||'')+'" placeholder="Used when you start an inspection"></label></div>';
+  if(window.RentalsPush) h+='<div class="card tap" data-act="notify"><div class="row"><div class="tile t1">🔔</div><div class="grow"><div class="title">Notifications</div><div class="small muted">Get told on this phone when an inspection is submitted, a form comes in or an agreement is signed</div></div><span class="chev">›</span></div></div>';
   h+='<button class="btn block" type="button" data-act="refresh">↻ Refresh properties and inspections</button>';
   h+='<div class="small muted" style="text-align:center;margin-block-start:18px">App version '+APP_VERSION+(S.serverVersion?' · backend '+esc(S.serverVersion):'')+(HAS_GAS?'':' · demo')+'</div>';
   return h;
 }
+/* ---- Setup > Notifications (Rentals app only: the panel comes from ../push.js) ---- */
+VIEWS.notify = function(){
+  setTitle('Notifications'); setFooter('<button class="btn" type="button" data-act="back">‹ Back</button>');
+  $('#app').innerHTML='<div id="rpNotify"></div>';
+  if(window.RentalsPush) window.RentalsPush.mount($('#rpNotify'));
+};
 /* ---- a submitted inspection, read-only ---- */
 VIEWS.viewInsp = function(id){
   var rec=recById(id)||{}; setTitle(rec.propertyName||'Inspection');
@@ -1430,6 +1437,7 @@ document.addEventListener('click',function(ev){
     case 'del-insp': var df=el.getAttribute('data-f'), drec=(id&&recById(id))||recentList().find(function(x){ return df && x.folderUrl===df; }); if(drec) deleteInspDialog(drec); break;
     /* admin */
     case 'admin': if(S.pin) go('adminList'); else go('adminLogin'); break;
+    case 'notify': go('notify'); break;
     case 'admin-login': var pin=$('#pinIn').value.trim(); api.verifyPin(pin).then(function(ok){ if(!ok){ toast('Incorrect PIN'); return; } S.pin=pin; try{ localStorage.setItem('fi-admin-seen','1'); }catch(e){} S.cur={view:'adminList'}; render(); }).catch(function(e){ toast(e.message); }); break;
     case 'new-prop': newPropDialog(''); break;
     case 'clone-prop': newPropDialog(id); break;

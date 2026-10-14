@@ -119,6 +119,37 @@
   }, true);
   document.addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('[data-noop]'); if (a) e.preventDefault(); }, true);
 
+  /* Install on a computer (Chrome / Edge on Windows, Mac or Android): when the browser says the app can be installed,
+     offer it once in a while. Installed, it opens in its own window with a taskbar / Start menu icon. iPhones never
+     offer this (they use Share > Add to Home Screen), and an installed app never shows it. */
+  var installEvt = null, SNOOZE = 'rentals-install-snooze';
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault(); installEvt = e;
+    var until = 0; try { until = +localStorage.getItem(SNOOZE) || 0; } catch (x) {}
+    if (Date.now() < until) return;
+    var b = document.getElementById('installBar');
+    if (b) return;
+    b = document.createElement('div'); b.id = 'installBar'; b.setAttribute('role', 'dialog'); b.setAttribute('aria-label', 'Install Rentals');
+    b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));z-index:99998;width:min(560px,calc(100% - 24px));' +
+      'display:flex;gap:12px;align-items:center;background:#fff;color:#0f172a;border:1px solid #e2e8f0;border-radius:14px;padding:12px 14px;' +
+      'box-shadow:0 10px 30px rgba(0,0,0,.18);font:15px/1.4 system-ui,-apple-system,Segoe UI,sans-serif';
+    b.innerHTML = '<img src="' + (APP ? '../' : '') + 'icon-180.png" alt="" width="40" height="40" style="border-radius:9px;flex:none">' +
+      '<div style="flex:1"><b>Install Rentals on this computer</b><br><span style="color:#475569;font-size:.88rem">Opens in its own window, with an icon on the taskbar and Start menu.</span></div>' +
+      '<button type="button" data-inst="no" style="font:inherit;padding:8px 12px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;color:#0f172a;cursor:pointer">Not now</button>' +
+      '<button type="button" data-inst="yes" style="font:inherit;padding:8px 14px;border-radius:10px;border:1px solid #0f766e;background:#0f766e;color:#fff;cursor:pointer;font-weight:600">Install</button>';
+    b.addEventListener('click', function (ev) {
+      var t = ev.target.closest('[data-inst]'); if (!t) return;
+      if (t.getAttribute('data-inst') === 'yes' && installEvt) {
+        installEvt.prompt();
+        installEvt.userChoice.then(function (c) { if (c && c.outcome !== 'accepted') { try { localStorage.setItem(SNOOZE, String(Date.now() + 7 * 864e5)); } catch (x) {} } }).catch(function () {});
+        installEvt = null;
+      } else { try { localStorage.setItem(SNOOZE, String(Date.now() + 30 * 864e5)); } catch (x) {} }
+      b.remove();
+    });
+    document.body.appendChild(b);
+  });
+  window.addEventListener('appinstalled', function () { var b = document.getElementById('installBar'); if (b) b.remove(); installEvt = null; });
+
   /* Offline start and updates */
   if ('serviceWorker' in navigator) navigator.serviceWorker.register((APP ? '../' : './') + 'sw.js').catch(function () {});
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});

@@ -4,8 +4,8 @@
 (function () {
   var box = document.getElementById('pushBox'); if (!box) return;
   var call = window.rentalsCall, $ = function (id) { return document.getElementById(id); };
-  var CATS = [['applications', 'An application form is submitted', 'forms you sent'],
-              ['signing', 'Someone signs an agreement', 'agreements you sent, with who is left to sign'],
+  var CATS = [['applications', 'An application form is submitted', 'forms you sent', 'anyone’s forms'],
+              ['signing', 'Someone signs an agreement', 'agreements you sent, with who is left to sign', 'anyone’s agreements, with who is left to sign'],
               ['toSign', 'An agreement is ready for me to sign', ''],
               ['inspections', 'An inspection is submitted', 'by someone else']];
   var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
@@ -23,10 +23,14 @@
       : on ? 'On for this ' + (/iPhone/.test(navigator.userAgent) ? 'iPhone' : 'device') + '.' : 'Off for this device.';
     $('pushOn').hidden = !can || on || Notification.permission === 'denied';
     $('pushOff').hidden = !on; $('pushTest').hidden = !on;
-    $('pushPrefs').innerHTML = info ? CATS.map(function (c) {
-      return '<label class="chk"><input type="checkbox" data-cat="' + c[0] + '"' + (info.prefs[c[0]] ? ' checked' : '') + '> <span>' + c[1] +
-        (c[2] ? '<br><span class="small">' + c[2] + '</span>' : '') + '</span></label>';
-    }).join('') : '';
+    var all = info && info.prefs.scope === 'all';
+    $('pushPrefs').innerHTML = info ? '<div class="seg" role="radiogroup" aria-label="Whose applications and agreements">' +
+      [['mine', 'Only mine'], ['all', 'Everyone’s']].map(function (o) { return '<label><input type="radio" name="pushScope" value="' + o[0] + '"' + ((all ? 'all' : 'mine') === o[0] ? ' checked' : '') + '> ' + o[1] + '</label>'; }).join('') + '</div><p class="small" style="margin:10px 0 4px">Tell me when:</p>' +
+      CATS.map(function (c) {
+        var note = all && c[3] ? c[3] : c[2];
+        return '<label class="chk"><input type="checkbox" data-cat="' + c[0] + '"' + (info.prefs[c[0]] ? ' checked' : '') + '> <span>' + c[1] +
+          (note ? '<br><span class="small">' + note + '</span>' : '') + '</span></label>';
+      }).join('') : '';
   }
   function load() {
     loaded = true;
@@ -63,6 +67,11 @@
       .then(function () { b.disabled = false; });
   });
   $('pushPrefs').addEventListener('change', function (e) {
+    if (e.target.name === 'pushScope') {
+      var was = info.prefs.scope; info.prefs.scope = e.target.value; draw();
+      call('auth', 'pushPrefs', [], { prefs: { scope: e.target.value } }).then(function () { msg('Saved.'); }, function (x) { info.prefs.scope = was; draw(); msg(x.message, true); });
+      return;
+    }
     var c = e.target.getAttribute('data-cat'); if (!c) return;
     var p = {}; p[c] = e.target.checked; info.prefs[c] = e.target.checked;
     call('auth', 'pushPrefs', [], { prefs: p }).then(function () { msg('Saved.'); }, function (x) { e.target.checked = !e.target.checked; info.prefs[c] = e.target.checked; msg(x.message, true); });

@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.13.9';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.14.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -41,11 +41,11 @@ function gas(fn){
 }
 var api = {};
 /* calls that only read: they don't hold the leave-page warning */
-var TM_READS = /^tm(Bootstrap|Refresh|GetVersion|GetReferences|CreditDetails|TribunalSearch|GetProgress|AgreementSearch|AgreementFields|CheckTemplate|PreviewAgreement|TenancySummary|BodyCorporateFiles|TenantProfile|GroupDeletePlan|AgreementProgress|ChangeProgress|RefreshAgreement|RefreshTenancyChange)$/;
+var TM_READS = /^tm(Bootstrap|Refresh|GetVersion|GetReferences|CreditDetails|ScreeningQuestions|TribunalSearch|GetProgress|AgreementSearch|AgreementFields|CheckTemplate|PreviewAgreement|TenancySummary|BodyCorporateFiles|TenantProfile|GroupDeletePlan|AgreementProgress|ChangeProgress|RefreshAgreement|RefreshTenancyChange)$/;
 /* Speed check: the last 40 calls (in memory only) */
 function speedNote(fn,ms,timing,ok){ S.speed=S.speed||[]; S.speed.unshift({fn:fn,ms:ms,server:timing?timing.serverMs:null,parts:timing?timing.parts:null,ok:ok,at:new Date().toISOString()}); S.speed=S.speed.slice(0,40); }
 ['tmBootstrap','tmSaveViewing','tmSetViewingStatus','tmSaveAttendee','tmRemoveAttendee','tmSendApplications','tmRefresh',
- 'tmUpdateApplication','tmGetReferences','tmCreditDetails','tmSaveReferenceCheck','tmAddContact','tmMarkEmailSent','tmGetVersion','tmSetGroup','tmDetachFromViewing','tmDeleteViewing','tmResendApplyLink','tmCancelApplyForm','tmCreateGroup','tmAddToGroup','tmSetGroupArrival','tmSetAttendance','tmMoveGroupToViewing','tmSaveTribunalCheck','tmTribunalSearch','tmGetProgress','tmSaveAgreementSettings','tmSendAgreement','tmRefreshAgreement','tmCancelAgreement',
+ 'tmUpdateApplication','tmGetReferences','tmCreditDetails','tmScreeningQuestions','tmSaveScreeningQuestions','tmSaveReferenceCheck','tmAddContact','tmMarkEmailSent','tmGetVersion','tmSetGroup','tmDetachFromViewing','tmDeleteViewing','tmResendApplyLink','tmCancelApplyForm','tmCreateGroup','tmAddToGroup','tmSetGroupArrival','tmSetAttendance','tmMoveGroupToViewing','tmSaveTribunalCheck','tmTribunalSearch','tmGetProgress','tmSaveAgreementSettings','tmSendAgreement','tmRefreshAgreement','tmCancelAgreement',
  'tmSaveProperty','tmSetPropertyActive','tmSaveLandlord','tmDeleteLandlord','tmSaveTenancy','tmDeleteTenancy','tmCreateTenancyFromGroup',
  'tmRecordBondPayment','tmDeleteBondPayment','tmSendBondReceipt','tmMarkBondLodged','tmSetBondNumber','tmSetBondMethod',
  'tmPreviewAgreement','tmResendAgreementLink','tmChangeTenants','tmRefreshTenancyChange','tmCancelTenancyChange','tmResendChangeLink','tmSetBondTask','tmTenancySummary','tmSaveTermsMaster','tmCopyTermsToProperties','tmBodyCorporateFiles','tmUploadBodyCorporateRules','tmTenantProfile','tmSaveTenantProfile','tmGroupDeletePlan','tmDeleteGroup','tmSetAdminPin','tmSavePerson','tmMergePeople','tmAgreementProgress','tmChangeProgress','tmSaveMyProfile','tmTestCreateGroup','tmTestSendForms','tmTestFillForm','tmTestApprove','tmTestSendAgreement','tmTestSignNext','tmTestStartChange','tmTestNextName','tmTestFinish'].forEach(function(n){
@@ -1279,6 +1279,8 @@ function setupHome(){
       '<div class="small muted">Who signs tenancy agreements, their contact details and address for service</div>'+
       '<div style="margin-block-start:6px"><span class="pill">'+lls.length+' landlord'+(lls.length===1?'':'s')+'</span>'+(noAddr?'<span class="pill st-warn">'+noAddr+' without an address for service</span>':'')+'</div></div><span class="chev">\u203A</span></div></div>';
   var tm=termsMaster(), tdiff=act.filter(function(p){ return !sameTerms(p.additionalTerms,tm); }).length;
+  h+='<div class="card tap" data-act="setup-questions"><div class="row"><div class="tile t2">\uD83D\uDCDD</div><div class="grow"><div class="title">Screening questions</div>'+
+    '<div class="small muted">The questions you ask each referee, by referee type, and the red flags to listen for</div></div><span class="chev">\u203A</span></div></div>';
   h+='<div class="card tap" data-act="setup-terms"><div class="row"><div class="tile t4">\uD83D\uDCDC</div><div class="grow"><div class="title">Additional terms</div>'+
       '<div class="small muted">The master list of extra terms for tenancy agreements, copied to each property</div>'+
       '<div style="margin-block-start:6px"><span class="pill">'+tm.length+' term'+(tm.length===1?'':'s')+'</span>'+(tdiff?'<span class="pill st-warn">'+tdiff+' propert'+(tdiff>1?'ies differ':'y differs')+'</span>':'')+'</div></div><span class="chev">\u203A</span></div></div>';
@@ -1805,6 +1807,61 @@ function leLogo(file){
   }; img.onerror=function(){ toast('Couldn\u2019t read that picture.',4000); }; img.src=String(rd.result); };
   rd.readAsDataURL(file);
 }
+/* ================= Setup: screening questions =================
+   The question sets reference checks use (and the red-flag lists shown alongside them). Each set says which kind of
+   referee it's for, so the right set opens for a landlord, an employer, family or a friend. Saved to the Screening Sets
+   and Screening Questions tabs. Answers already given stay with the words they were given to. */
+var QS_USES=[['Landlord','Landlords / property managers'],['Employer','Employers'],['Family','Family'],['Friend','Friends / character']];
+function qsClone(sets){ return (sets||[]).map(function(s){ return {id:s.id||'',name:s.name||'',note:s.note||'',kind:s.flags?'Red flags':'Questions',usedFor:(s.usedFor||[]).slice(),items:(s.items||[]).slice()}; }); }
+function qsSame(a,b){ return JSON.stringify(a)===JSON.stringify(b); }
+function qsDirty(){ var e=S.qsE, sv=S.qsSaved; return !!(e&&sv) && !qsSame(e,sv); }
+function qsMarkUnsaved(){ var d=qsDirty(), b=$('#qsSave'), u=$('#qsUnsaved'); if(b) b.disabled=!d; if(u) u.style.display=d?'':'none'; }
+VIEWS.setupQuestions = function(){
+  setTitle('Screening questions');
+  if(!S.qsE){
+    $('#app').innerHTML='<div class="card row"><span class="spin"></span><span class="title">Loading\u2026</span></div>';
+    return api.tmScreeningQuestions().then(function(r){ S.qsSaved=qsClone(r.sets); S.qsE=qsClone(r.sets); S.qsLegacy=!!r.legacy; S.qsOpen={}; if(S.cur.view==='setupQuestions') render(); });
+  }
+  var e=S.qsE, open=S.qsOpen||(S.qsOpen={});
+  var h='<div class="small muted" style="margin:4px 6px 10px">The questions you ask each referee. A set is picked for each referee from who they are (landlord, employer, family or friend), and you can switch sets on the reference screen. Red-flag lists show beside the questions as things to listen for.</div>';
+  if(S.qsLegacy) h+='<div class="card small" style="background:var(--miss-soft)">These came from the older <b>Reference Questions</b> tab. Saving here moves them to two new tabs, <b>Screening Sets</b> and <b>Screening Questions</b>; the old tab is left as it was and is no longer used.</div>';
+  e.forEach(function(s,si){
+    var isOpen=!!open[si];
+    h+='<div class="card" style="padding:0;overflow:hidden">'+
+      '<div class="row tap" data-act="qs-toggle" data-id="'+si+'" style="padding:14px 16px;gap:10px"><div class="grow"><div class="title">'+esc(s.name||'(no name yet)')+'</div>'+
+        '<div style="margin-block-start:6px"><span class="pill'+(s.kind==='Red flags'?' st-warn':'')+'">'+(s.kind==='Red flags'?'\u26a0 Red flags':s.items.length+' question'+(s.items.length===1?'':'s'))+'</span>'+
+        (s.kind==='Red flags'?'<span class="pill">'+s.items.length+' item'+(s.items.length===1?'':'s')+'</span>':(s.usedFor.length?'<span class="pill">For '+esc(s.usedFor.join(', '))+'</span>':'<span class="pill">Not matched to a referee type</span>'))+'</div></div>'+
+        '<span class="chev" style="transform:rotate('+(isOpen?90:0)+'deg)">\u203a</span></div>';
+    if(isOpen){
+      h+='<div style="padding:0 16px 16px">'+
+        '<label class="fld"><span>Name</span><input type="text" data-qs-name="'+si+'" value="'+esc(s.name)+'" placeholder="e.g. Previous landlord"></label>'+
+        '<div class="fld"><span>Kind</span></div><div class="seg" style="grid-template-columns:1fr 1fr;margin-block:0 12px">'+
+          ['Questions','Red flags'].map(function(k){ return '<button type="button" data-act="qs-kind" data-id="'+si+'" data-k="'+k+'" class="'+(s.kind===k?'on':'')+'">'+(k==='Questions'?'Questions to ask':'Red flags to listen for')+'</button>'; }).join('')+'</div>'+
+        (s.kind==='Questions'?'<div class="fld"><span>Use this set for</span></div><div class="row wrap" style="gap:6px;margin-block-end:12px">'+
+          QS_USES.map(function(u){ var on=s.usedFor.indexOf(u[0])>=0; return '<label class="pill" style="cursor:pointer;padding:6px 10px;'+(on?'background:var(--brand-soft);color:var(--brand)':'')+'"><input type="checkbox" data-qs-use="'+si+'" value="'+u[0]+'"'+(on?' checked':'')+' style="margin-inline-end:6px">'+esc(u[1])+'</label>'; }).join('')+'</div>':'')+
+        '<label class="fld"><span>Note shown with the set (optional)</span><input type="text" data-qs-note="'+si+'" value="'+esc(s.note)+'" placeholder="e.g. Ask for the property address first"></label>'+
+        '<div class="fld"><span>'+(s.kind==='Red flags'?'Red flags':'Questions')+'</span></div>'+
+        s.items.map(function(q,qi){ return '<div class="row" style="gap:6px;margin-block-end:6px;align-items:flex-start"><b style="padding-block-start:12px;min-width:18px">'+(qi+1)+'.</b>'+
+          '<textarea class="grow" rows="2" data-qs-q="'+si+':'+qi+'" placeholder="'+(s.kind==='Red flags'?'e.g. Hesitates when asked about rent':'e.g. Were rent payments on time?')+'" aria-label="Question '+(qi+1)+'">'+esc(q)+'</textarea>'+
+          '<div style="display:flex;flex-direction:column;gap:4px"><button class="btn sm" type="button" data-act="qs-q-up" data-id="'+si+':'+qi+'" aria-label="Move up"'+(qi?'':' disabled')+'>\u2191</button>'+
+          '<button class="btn sm" type="button" data-act="qs-q-down" data-id="'+si+':'+qi+'" aria-label="Move down"'+(qi<s.items.length-1?'':' disabled')+'>\u2193</button></div>'+
+          '<button class="btn sm danger" type="button" data-act="qs-q-del" data-id="'+si+':'+qi+'" aria-label="Remove">\u2715</button></div>'; }).join('')+
+        '<button class="btn sm" type="button" data-act="qs-q-add" data-id="'+si+'">\uff0b Add '+(s.kind==='Red flags'?'red flag':'question')+'</button>'+
+        '<div class="row wrap" style="gap:8px;margin-block-start:14px;padding-block-start:12px;border-block-start:1px solid var(--line)">'+
+          '<button class="btn sm" type="button" data-act="qs-set-up" data-id="'+si+'"'+(si?'':' disabled')+'>\u2191 Move set up</button>'+
+          '<button class="btn sm" type="button" data-act="qs-set-down" data-id="'+si+'"'+(si<e.length-1?'':' disabled')+'>\u2193 Move set down</button>'+
+          '<button class="btn sm danger" type="button" data-act="qs-set-del" data-id="'+si+'">Delete set</button></div>'+
+        '</div>';
+    }
+    h+='</div>';
+  });
+  if(!e.length) h+='<div class="card small muted">No question sets yet.</div>';
+  h+='<button class="btn block dashed" type="button" data-act="qs-set-add">\uff0b Add a question set</button><div id="qsErr" class="err" style="margin:8px 6px"></div>';
+  $('#app').innerHTML=h;
+  var d=qsDirty();
+  setFooter('<div class="row" style="gap:8px;width:100%"><span class="pill st-warn" id="qsUnsaved" style="align-self:center'+(d?'':';display:none')+'">Unsaved</span>'+
+    '<button class="btn primary grow" type="button" data-act="qs-save" id="qsSave"'+(d?'':' disabled')+'>Save questions</button></div>');
+};
 VIEWS.setupTerms = function(){
   setTitle('Additional terms');
   if(!S.tmE) S.tmE=termsMaster().slice();
@@ -2381,6 +2438,11 @@ function editField(el){
   if(el.hasAttribute('data-pe')&&S.pe){ var pk=el.getAttribute('data-pe'), pwas=S.pe[pk]; S.pe[pk]=el.value;
     if(pk==='rent'&&bondFollows(S.pe.bond,pwas)){ S.pe.bond=bond4(el.value); var pb=document.querySelector('[data-pe=bond]'); if(pb) pb.value=S.pe.bond; } if(/^(rent|bond)$/.test(el.getAttribute('data-pe'))) peHint(); peMenuRefresh();
     if(el.getAttribute('data-pe')==='power'){ peUtilRedraw(); return true; } if(el.getAttribute('data-pe')==='bodyCorporateRules') peBcRedraw(); return true; }
+  if(el.hasAttribute('data-qs-name')&&S.qsE){ S.qsE[+el.getAttribute('data-qs-name')].name=el.value; qsMarkUnsaved(); return true; }
+  if(el.hasAttribute('data-qs-note')&&S.qsE){ S.qsE[+el.getAttribute('data-qs-note')].note=el.value; qsMarkUnsaved(); return true; }
+  if(el.hasAttribute('data-qs-q')&&S.qsE){ var qp=el.getAttribute('data-qs-q').split(':'); S.qsE[+qp[0]].items[+qp[1]]=el.value; qsMarkUnsaved(); return true; }
+  if(el.hasAttribute('data-qs-use')&&S.qsE){ var qu=S.qsE[+el.getAttribute('data-qs-use')], uv=el.value; qu.usedFor=qu.usedFor.filter(function(x){ return x!==uv; }); if(el.checked) qu.usedFor.push(uv);
+    qu.usedFor.sort(function(a,b){ return QS_USES.map(function(x){ return x[0]; }).indexOf(a)-QS_USES.map(function(x){ return x[0]; }).indexOf(b); }); keepScroll(render); return true; }
   if(el.hasAttribute('data-tm-at')&&S.tmE){ S.tmE[+el.getAttribute('data-tm-at')]=el.value; var tsv=sameTerms(S.tmE,termsMaster());
     var tsb=$('#tmSave'), tsu=$('#tmUnsaved'); if(tsb) tsb.disabled=tsv; if(tsu) tsu.style.display=tsv?'none':''; return true; }
   if(el.hasAttribute('data-pe-at')&&S.pe){ S.pe.additionalTerms[+el.getAttribute('data-pe-at')]=el.value; return true; }
@@ -2575,7 +2637,8 @@ function guessSet(c,sets){
   else if(/employ|manager|boss|work|supervisor|colleague/.test(rel)) want=/employ/;
   else if(/family|mum|dad|mother|father|sister|brother|aunt|uncle|parent|cousin|grand|nan|partner/.test(rel)) want=/family/;
   else want=/friend|flatmate|character/;
-  var s=sets.find(function(x){ return !x.flags && want.test(x.name.toLowerCase()); });
+  var cat=want.test('landlord')?'Landlord':want.test('employ')?'Employer':want.test('family')?'Family':'Friend';
+  var s=sets.find(function(x){ return !x.flags && (x.usedFor||[]).indexOf(cat)>=0; }) || sets.find(function(x){ return !x.flags && !(x.usedFor||[]).length && want.test(x.name.toLowerCase()); });
   return s? s.name : (sets.find(function(x){ return !x.flags; })||{}).name;
 }
 /* The applicant's signed application, archived in Google Drive */
@@ -2635,7 +2698,8 @@ VIEWS.ref = function(arg){
 };
 function drawQuestions(r){
   var F=S.form, set=r.questions.find(function(s){ return s.name===F.set; }), box=$('#qList'); if(!box) return;
-  if(!set){ box.innerHTML='<div class="small muted">Add questions to the Reference Questions tab to see them here.</div>'; return; }
+  if(!set && r.questions.some(function(s){ return !s.flags; })){ var c0=r.contacts.find(function(x){ return x.slot===F.slot; })||{slot:F.slot,relationship:''}; F.set=guessSet(c0,r.questions); set=r.questions.find(function(s){ return s.name===F.set; }); }
+  if(!set){ box.innerHTML='<div class="small muted">Add screening questions in Setup \u203A Screening questions to see them here.</div>'; return; }
   box.innerHTML=(set.note?'<div class="small muted" style="margin-block:8px">'+esc(set.note)+'</div>':'')+set.items.map(function(q,i){
     var yn=/^(would|did|were|was|are|is|do|does|have|has|can)\b/i.test(q);
     return '<div class="q"><div class="qt"><i>'+(i+1)+'</i>'+esc(q)+'</div><textarea data-q="'+esc(q)+'" rows="2">'+esc(F.answers[q]||'')+'</textarea>'+
@@ -3219,6 +3283,23 @@ document.addEventListener('click',function(e){
 
   if(act==='setup-props') return go('setupProps');
   if(act==='setup-landlords') return go('setupLandlords');
+  if(act==='setup-questions'){ S.qsE=null; return go('setupQuestions'); }
+  if(act==='qs-toggle'){ S.qsOpen[id]=!S.qsOpen[id]; return keepScroll(render); }
+  if(act==='qs-kind'){ var qk=S.qsE[+id]; qk.kind=t.getAttribute('data-k'); if(qk.kind==='Red flags') qk.usedFor=[]; return keepScroll(render); }
+  if(act==='qs-set-add'){ S.qsE.push({id:'',name:'',note:'',kind:'Questions',usedFor:[],items:['']}); S.qsOpen[S.qsE.length-1]=true; keepScroll(render); var qn=document.querySelectorAll('[data-qs-name]'); if(qn.length) qn[qn.length-1].focus(); return; }
+  if(act==='qs-set-up'||act==='qs-set-down'){ var a1=+id, b1=act==='qs-set-up'?a1-1:a1+1; if(b1<0||b1>=S.qsE.length) return;
+    S.qsE.splice(b1,0,S.qsE.splice(a1,1)[0]); var o1=!!S.qsOpen[a1]; S.qsOpen[a1]=!!S.qsOpen[b1]; S.qsOpen[b1]=o1; return keepScroll(render); }
+  if(act==='qs-set-del'){ var ds=S.qsE[+id];
+    return ask('Delete the set <b>'+esc(ds.name||'(no name)')+'</b> and its '+ds.items.filter(String).length+' question(s)? Answers already given to it are kept with those referees.','Delete set').then(function(ok){
+      if(!ok) return; S.qsE.splice(+id,1); S.qsOpen={}; keepScroll(render); }); }
+  if(act==='qs-q-add'){ S.qsE[+id].items.push(''); keepScroll(render); var qq=document.querySelectorAll('[data-qs-q^="'+id+':"]'); if(qq.length) qq[qq.length-1].focus(); return; }
+  if(act==='qs-q-del'||act==='qs-q-up'||act==='qs-q-down'){ var pq=id.split(':'), qset=S.qsE[+pq[0]], qi=+pq[1];
+    if(act==='qs-q-del') qset.items.splice(qi,1);
+    else { var qj=act==='qs-q-up'?qi-1:qi+1; if(qj<0||qj>=qset.items.length) return; qset.items.splice(qj,0,qset.items.splice(qi,1)[0]); }
+    return keepScroll(render); }
+  if(act==='qs-save'){ $('#qsErr').textContent='';
+    return busy(t,'Saving',api.tmSaveScreeningQuestions(S.qsE)).then(function(r){ S.qsSaved=qsClone(r.sets); S.qsE=qsClone(r.sets); S.qsLegacy=false; S.refs={}; toast('Screening questions saved'); keepScroll(render); })
+      .catch(function(x){ var er=$('#qsErr'); if(er) er.textContent=x.message; }); }
   if(act==='setup-terms'){ S.tmE=null; return go('setupTerms'); }
   if(act==='tm-add'){ S.tmE.push(''); keepScroll(render); var tq=document.querySelectorAll('[data-tm-at]'); if(tq.length) tq[tq.length-1].focus(); return; }
   if(act==='tm-del'){ S.tmE.splice(+id,1); return keepScroll(render); }
@@ -3424,6 +3505,7 @@ document.addEventListener('click',function(e){
     var F=S.form, r=S.refs[F.ref], set=r.questions.find(function(s){ return s.name===F.set; });
     F.notes=$('#rfNotes').value; F.checkedBy=$('#rfBy').value.trim(); try{ localStorage.setItem('tm-checker',F.checkedBy); }catch(x){}
     var answers=(set?set.items:[]).map(function(q){ return {question:q,answer:F.answers[q]||''}; });
+    Object.keys(F.answers||{}).forEach(function(q){ if(set && set.items.indexOf(q)>=0) return; if(String(F.answers[q]||'').trim()) answers.push({question:q,answer:F.answers[q]}); });   // earlier answers are kept
     var also=[].filter.call(document.querySelectorAll('.rfAlso'),function(c){ return c.checked; }).map(function(c){ return {ref:c.getAttribute('data-ref'),slot:c.getAttribute('data-slot')}; });
     return busy(t,'Saving',api.tmSaveReferenceCheck(F.ref,F.slot,{set:F.set,answers:answers,status:F.status,outcome:F.outcome,notes:F.notes,checkedBy:F.checkedBy,alsoFor:also}))
       .then(function(res){ S.refs={}; S.refs[F.ref]=res; try{ localStorage.removeItem(draftKey(F.ref,F.slot)); also.forEach(function(o){ localStorage.removeItem(draftKey(o.ref,o.slot)); }); }catch(x){}
@@ -3537,11 +3619,11 @@ var Demo = {
   save:function(d){ try{ localStorage.setItem(Demo.key,JSON.stringify(d)); }catch(e){} },
   seed:function(){
     var t=new Date(); t.setHours(17,30,0,0); var y=new Date(t.getTime()-86400000*5);
-    var Q=[{name:'Previous Property Manager / Landlord',note:'',items:['How long did they rent from you?','Would you rent to them again without hesitation?','Were rent payments generally on time?','Did they keep the property in reasonable condition?']},
-           {name:'Employer / Manager',note:'',items:['How long have you known them?','Are they reliable and punctual?','Would you rehire them if given the opportunity?']},
-           {name:'Family Member',note:'Use with caution. Focus more on behaviours than opinions.',items:['Are they generally organised with money?','How do they treat property that belongs to other people?']},
-           {name:'Friend / Flatmate',note:'',items:['How long have you known them?','Would you choose to live with them again?']},
-           {name:'Red Flags',note:'Watch for:',items:['Long pauses before answering simple questions.','Overly enthusiastic praise with no examples.'],flags:true}];
+    var Q=[{id:'QS-d1',usedFor:['Landlord'],name:'Previous Property Manager / Landlord',note:'',items:['How long did they rent from you?','Would you rent to them again without hesitation?','Were rent payments generally on time?','Did they keep the property in reasonable condition?']},
+           {id:'QS-d2',usedFor:['Employer'],name:'Employer / Manager',note:'',items:['How long have you known them?','Are they reliable and punctual?','Would you rehire them if given the opportunity?']},
+           {id:'QS-d3',usedFor:['Family'],name:'Family Member',note:'Use with caution. Focus more on behaviours than opinions.',items:['Are they generally organised with money?','How do they treat property that belongs to other people?']},
+           {id:'QS-d4',usedFor:['Friend'],name:'Friend / Flatmate',note:'',items:['How long have you known them?','Would you choose to live with them again?']},
+           {id:'QS-d5',usedFor:[],name:'Red Flags',note:'Watch for:',items:['Long pauses before answering simple questions.','Overly enthusiastic praise with no examples.'],flags:true}];
     return { viewings:[{id:'V-1',address1:'36 Grange St',address2:'North Dunedin',rent:950,moveIn:'2027-01-01T00:00:00.000Z',tenancy:'12 months',viewingAt:t.toISOString(),notes:'Park on the street',status:'Scheduled',hostedBy:'Kelvin',lastAt:new Date(t.getTime()+20*60000).toISOString(),slotMinutes:5},
                        {id:'V-0',address1:'54 Grange St',address2:'Dunedin 9016',rent:555,moveIn:'',tenancy:'12 months',viewingAt:y.toISOString(),notes:'',status:'Completed',lastAt:new Date(y.getTime()+30*60000).toISOString(),slotMinutes:10}],
       applications:[
@@ -3811,6 +3893,8 @@ var Demo = {
       case 'tmUpdateApplication': var u=d.applications.find(function(x){return x.ref===a[0];}); if(a[1].decision!==undefined) u.decision=a[1].decision; if(a[1].decisionNotes!==undefined) u.decisionNotes=a[1].decisionNotes; if(a[1].creditCheck!==undefined) u.creditCheck=a[1].creditCheck; if(a[1].courtFines!==undefined) u.courtFines=a[1].courtFines;
         if(a[1].applyToGroup) d.applications.forEach(function(x){ if((x.group||x.ref)===(u.group||u.ref)){ x.decision=u.decision; x.decisionNotes=u.decisionNotes; } }); return done(Demo.state(d));
       case 'tmGetReferences': return done(Demo.refs(d,a[0]));
+      case 'tmScreeningQuestions': return done({sets:JSON.parse(JSON.stringify(d.questions)),legacy:false});
+      case 'tmSaveScreeningQuestions': d.questions=a[0].map(function(q,i){ return {id:q.id||('QS-n'+i),name:q.name.trim(),note:q.note||'',flags:q.kind==='Red flags',usedFor:q.kind==='Red flags'?[]:q.usedFor.slice(),items:q.items.map(function(x){ return String(x).trim(); }).filter(String)}; }); return done({sets:JSON.parse(JSON.stringify(d.questions)),legacy:false});
       case 'tmCreditDetails': var ca=d.applications.find(function(x){return x.ref===a[0];})||{};
         return done({ref:a[0],name:ca.name||'',dob:'1998-04-07',email:ca.email||'',licenceNumber:'AB123456',licenceVersion:'123',
           address:'12 Smith Street, Mornington, Dunedin 9011',howLong:'2 years 3 months',prevAddress:'Flat 2, 45 Queen Street, North Dunedin, Dunedin 9016',prevHowLong:'18 months',photoId:[{name:'licence.jpg',url:'https://example.com/licence.jpg'}],uploadsFolder:''});

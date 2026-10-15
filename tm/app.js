@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.15.6';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.16.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1536,11 +1536,12 @@ var INS_TYPES=['Glass wool batts','Polyester batts','Wool batts','Polystyrene','
 var INS_REASONS={ceiling:['No ceiling cavity','Skillion roof with no access','Not safe to access'],underfloor:['Concrete floors','No floor cavity space','No access to the subfloor'],walls:['Walls lined and can\u2019t be checked without damage','Solid brick walls']};
 var GROUND_REASONS=['Concrete floors','No floor cavity space','No access to the subfloor'];
 var INS_FIELDS=['status','type','rValue','thickness','installed','lastInspected','condition','conditionNotes','partialNotes','reason'];
-var HH_FIELDS=['complianceDate','heatingCapacity','heater1','heater2','toleranceApplies','toleranceReason','ventilation','ventilationNotes','kitchenFan','bathroomFan','fanNotes','gutters','guttersNotes','groundCover','groundCoverReason','drafts','openFireplace','fireplaceNotes'];
+var HH_FIELDS=['complianceDate','heatingComplies','heatingCapacity','heatingProvided','heater1','heater2','toleranceApplies','toleranceKw','toleranceReason','heatingExemptReason','additionalHeating','ventilation','ventilationNotes','kitchenFan','bathroomFan','fanNotes','gutters','guttersNotes','groundCover','groundCoverReason','drafts','openFireplace','fireplaceNotes'];
 function blankIns(){ var o={}; INS_AREAS.forEach(function(a){ o[a[0]]={}; INS_FIELDS.forEach(function(k){ o[a[0]][k]=''; }); }); return o; }
 function blankHH(){ var o={}; HH_FIELDS.forEach(function(k){ o[k]=''; }); return o; }
 function insOf(v){ var o=blankIns(); INS_AREAS.forEach(function(a){ var x=(v||{})[a[0]]||{}; INS_FIELDS.forEach(function(k){ if(x[k]!=null) o[a[0]][k]=x[k]; }); }); return o; }
 function hhOf(v){ var o=blankHH(); v=v||{}; HH_FIELDS.forEach(function(k){ if(v[k]!=null) o[k]=v[k]; });
+  if(!o.heatingComplies && (tx(o.heater1)||tx(o.heatingCapacity))) o.heatingComplies='yes';   // before 3.16.0 every property complied
   if(o.ventilation&&['yes','partial'].indexOf(o.ventilation)<0){ if(!o.ventilationNotes) o.ventilationNotes=o.ventilation; o.ventilation=''; }   // 2.23.0 free text
   return o; }
 function tx(v){ return String(v==null?'':v).trim(); }
@@ -1564,9 +1565,16 @@ function insProblems(v){
 function hhProblems(v){
   var h=hhOf(v), out=[];
   if(!h.complianceDate) out.push('the healthy homes compliance date');
-  if(!(+h.heatingCapacity>0)) out.push('the required heating capacity for the main living area');
-  if(!tx(h.heater1)) out.push('the qualifying heater in the main living room');
-  if(!h.toleranceApplies) out.push('whether the heating tolerance top-up applies'); else if(h.toleranceApplies==='yes'&&!tx(h.toleranceReason)) out.push('why the heating tolerance top-up applies');
+  if(!h.heatingComplies) out.push('whether the main living room meets the heating standard');
+  else if(h.heatingComplies==='no'){ if(!tx(h.heatingExemptReason)) out.push('why the heating doesn\u2019t comply'); }
+  else {
+    if(!(+h.heatingCapacity>0)) out.push('the heating required for the main living area (kW)');
+    if(!(+h.heatingProvided>0)) out.push('the heating provided in the main living room (kW)');
+    if(!tx(h.heater1)) out.push('the qualifying heater in the main living room');
+    if(!h.toleranceApplies) out.push('whether a heating top-up applies');
+    else if(h.toleranceApplies==='yes'){ if(!(+h.toleranceKw>0)) out.push('how much the heating top-up is (kW)'); if(!tx(h.toleranceReason)) out.push('why the heating top-up is acceptable'); }
+    else if(+h.heatingProvided>0 && +h.heatingCapacity>0 && +h.heatingProvided < +h.heatingCapacity) out.push('more heating, a top-up, or \u201CDoesn\u2019t comply\u201D: '+kwText(h.heatingProvided)+' provided is less than the '+kwText(h.heatingCapacity)+' required');
+  }
   if(!h.ventilation) out.push('whether all habitable spaces meet the ventilation standard'); else if(h.ventilation==='partial'&&!tx(h.ventilationNotes)) out.push('which spaces do and don\u2019t meet the ventilation standard');
   if(!h.kitchenFan) out.push('the kitchen rangehood or extractor fan');
   if(!h.bathroomFan) out.push('the bathroom extractor fan');
@@ -1577,6 +1585,7 @@ function hhProblems(v){
   if(!h.openFireplace) out.push('whether there are any open fireplaces');
   return out;
 }
+function kwText(v){ return tx(v)===''||!isFinite(+v)? 'not stated' : String(+v)+' kW'; }
 function sentence(s){ s=tx(s); return s&&!/[.!?]$/.test(s)? s+'.' : s; }
 function trimEnd(s){ return tx(s).replace(/[.\s]+$/,''); }
 function monthText(ym){ var p=String(ym||'').split('-'); return p.length===2? MONTHS[+p[1]-1]+' '+p[0] : ''; }
@@ -1592,9 +1601,11 @@ function insText(v){ var ins=insOf(v); return INS_AREAS.map(function(a){ var x=i
 var FIREPLACE_TEXT={none:'none.',closed:'yes, closed off or chimney blocked to prevent draughts.',usable:'yes, and the landlord and tenant have agreed in writing that it can be used.'};
 var FAN_TEXT={'150':'extractor fan or rangehood of at least 150 mm, vented outside',pre2019:'extractor fan smaller than 150 mm, installed before 1 July 2019',none:'no extractor fan'};
 function hhText(v,landlordName){ var h=hhOf(v), heaters=[tx(h.heater1),tx(h.heater2)].filter(Boolean);
-  return ['Heating: The required heating capacity for the main living area is '+(tx(h.heatingCapacity)!==''?tx(h.heatingCapacity)+' kW':'not stated')+'.'+
+  return ['Heating: '+(h.heatingComplies==='no'? 'The main living room does not meet the heating standard. '+sentence(h.heatingExemptReason) :
+      'The main living room meets the heating standard. Heating required for the main living area: '+kwText(h.heatingCapacity)+'. Heating provided: '+kwText(h.heatingProvided)+'.'+
       ' Qualifying heater'+(heaters.length>1?'s':'')+' installed in the main living room: '+(heaters.length?heaters.map(trimEnd).join('; '):'not stated')+'.'+
-      (h.toleranceApplies==='yes'?' The heating tolerance top-up applies: '+sentence(h.toleranceReason):h.toleranceApplies==='no'?' The heating tolerance top-up does not apply.':''),
+      (h.toleranceApplies==='yes'?' A heating top-up of '+kwText(h.toleranceKw)+' applies: '+sentence(h.toleranceReason):h.toleranceApplies==='no'?' No heating top-up applies.':''))+
+      (tx(h.additionalHeating)?' Additional heating provided: '+sentence(h.additionalHeating):''),
     'Ventilation: '+(h.ventilation==='yes'?'All habitable spaces meet the ventilation standard.'+(tx(h.ventilationNotes)?' '+sentence(h.ventilationNotes):''):h.ventilation==='partial'?'Partly. '+sentence(h.ventilationNotes):'Not stated.')+
       ' Kitchen: '+(FAN_TEXT[h.kitchenFan]||'not stated')+'. Bathroom: '+(FAN_TEXT[h.bathroomFan]||'not stated')+'.'+((h.kitchenFan==='none'||h.bathroomFan==='none')&&tx(h.fanNotes)?' '+sentence(h.fanNotes):''),
     'Moisture and drainage: '+(h.gutters==='yes'?'Gutters and downpipes efficiently drain water to an appropriate outfall.':h.gutters==='no'?'Gutters and downpipes do not efficiently drain water to an appropriate outfall.'+(tx(h.guttersNotes)?' '+sentence(h.guttersNotes):''):'Gutters and downpipes not stated.')+
@@ -1676,12 +1687,19 @@ function insAreaHtml(key,label,x){
 function hhHtml(h){
   var none=h.kitchenFan==='none'||h.bathroomFan==='none';
   return '<label class="fld"><span>Healthy homes compliance date</span><input type="date" data-hh="complianceDate" value="'+esc(h.complianceDate)+'"></label>'+
-    '<div class="sasec">Heating</div>'+
-    '<label class="fld"><span>Required heating capacity for the main living area (kW)</span><input type="number" inputmode="decimal" step="0.1" min="0" data-hh="heatingCapacity" value="'+esc(h.heatingCapacity)+'" placeholder="e.g. 5.7"></label>'+
-    '<label class="fld"><span>Qualifying heater installed in the main living room</span><input type="text" data-hh="heater1" value="'+esc(h.heater1)+'" placeholder="e.g. Daikin heat pump, 6.0 kW heating"></label>'+
-    '<label class="fld"><span>Second qualifying heater (optional)</span><input type="text" data-hh="heater2" value="'+esc(h.heater2)+'" placeholder="e.g. 2.4 kW fixed electric heater with thermostat"></label>'+
-    fldLabel('Does the heating tolerance top-up apply?')+segHtml('hh-seg','toleranceApplies',h.toleranceApplies,[['yes','Yes'],['no','No']])+
-    (h.toleranceApplies==='yes'?'<label class="fld"><span>Why it applies (required)</span><textarea rows="3" data-hh="toleranceReason" placeholder="e.g. Required heating capacity is 5.7kW and the existing heat pump (installed before 1 July 2019) has 3.3kW. A 2.4kW fixed electric heater with a thermostat has been installed to top up to the required amount.">'+esc(h.toleranceReason)+'</textarea></label>':'')+
+    '<div class="sasec">Heating</div>'+fldLabel('Does the main living room meet the heating standard?')+
+    segHtml('hh-seg','heatingComplies',h.heatingComplies,[['yes','Complies'],['no','Doesn\u2019t comply']])+
+    (h.heatingComplies==='no'?'<label class="fld"><span>Why it doesn\u2019t comply (required)</span><textarea rows="3" data-hh="heatingExemptReason" placeholder="e.g. Partial exemption: the body corporate rules don\u2019t allow a heat pump on the external walls, there\u2019s no mains gas and a woodburner can\u2019t be installed.">'+esc(h.heatingExemptReason)+'</textarea></label>' :
+     h.heatingComplies==='yes'?
+      '<div class="grid2"><label class="fld"><span>Heating required (kW)</span><input type="number" inputmode="decimal" step="0.1" min="0" data-hh="heatingCapacity" value="'+esc(h.heatingCapacity)+'" placeholder="e.g. 5.7"></label>'+
+      '<label class="fld"><span>Heating provided (kW)</span><input type="number" inputmode="decimal" step="0.1" min="0" data-hh="heatingProvided" value="'+esc(h.heatingProvided)+'" placeholder="e.g. 6.0"></label></div>'+
+      '<label class="fld"><span>Qualifying heater installed in the main living room</span><input type="text" data-hh="heater1" value="'+esc(h.heater1)+'" placeholder="e.g. Daikin heat pump, 6.0 kW heating"></label>'+
+      '<label class="fld"><span>Second qualifying heater (optional)</span><input type="text" data-hh="heater2" value="'+esc(h.heater2)+'" placeholder="e.g. 2.4 kW fixed electric heater with thermostat"></label>'+
+      fldLabel('Has a top-up been applied?')+segHtml('hh-seg','toleranceApplies',h.toleranceApplies,[['yes','Yes'],['no','No']])+
+      (h.toleranceApplies==='yes'?'<label class="fld"><span>Top-up amount (kW)</span><input type="number" inputmode="decimal" step="0.1" min="0" data-hh="toleranceKw" value="'+esc(h.toleranceKw)+'" placeholder="e.g. 2.4"></label>'+
+        '<label class="fld"><span>Why the top-up is acceptable (required)</span><textarea rows="3" data-hh="toleranceReason" placeholder="e.g. Required heating capacity is 5.7 kW and the existing heat pump (installed before 1 July 2019) has 3.3 kW. A 2.4 kW fixed electric heater with a thermostat has been installed to top up to the required amount.">'+esc(h.toleranceReason)+'</textarea></label>':'')
+     : '')+
+    '<label class="fld"><span>Additional heating provided (optional)</span><textarea rows="2" data-hh="additionalHeating" placeholder="e.g. Panel heaters with thermostats in bedrooms 1 and 2; heated towel rail in the bathroom">'+esc(h.additionalHeating)+'</textarea></label>'+
     '<div class="sasec">Ventilation</div>'+fldLabel('Do all habitable spaces meet the ventilation standard?')+
     segHtml('hh-seg','ventilation',h.ventilation,[['yes','Yes, all habitable spaces'],['partial','Partial']])+
     (h.ventilation==='partial'?'<label class="fld"><span>Which spaces do and don\u2019t (required)</span><textarea rows="2" data-hh="ventilationNotes" placeholder="e.g. All bedrooms and the lounge have opening windows; the hallway has none">'+esc(h.ventilationNotes)+'</textarea></label>':'')+

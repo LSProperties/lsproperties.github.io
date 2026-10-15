@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.16.10';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.17.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -100,7 +100,7 @@ var TM_READS = /^tm(Bootstrap|Refresh|GetVersion|GetReferences|CreditDetails|Pho
 /* Speed check: the last 40 calls (in memory only) */
 function speedNote(fn,ms,timing,ok){ S.speed=S.speed||[]; S.speed.unshift({fn:fn,ms:ms,server:timing?timing.serverMs:null,parts:timing?timing.parts:null,ok:ok,at:new Date().toISOString()}); S.speed=S.speed.slice(0,40); }
 ['tmBootstrap','tmSaveViewing','tmSetViewingStatus','tmSaveAttendee','tmRemoveAttendee','tmSendApplications','tmRefresh',
- 'tmUpdateApplication','tmGetReferences','tmCreditDetails','tmPhotoIdFile','tmDriveFile','tmScreeningQuestions','tmSaveScreeningQuestions','tmSaveReferenceCheck','tmAddContact','tmMarkEmailSent','tmGetVersion','tmSetGroup','tmDetachFromViewing','tmDeleteViewing','tmResendApplyLink','tmCancelApplyForm','tmCreateGroup','tmAddToGroup','tmSetGroupArrival','tmSetAttendance','tmMoveGroupToViewing','tmSaveTribunalCheck','tmTribunalSearch','tmGetProgress','tmSaveAgreementSettings','tmSendAgreement','tmRefreshAgreement','tmCancelAgreement',
+ 'tmUpdateApplication','tmGetReferences','tmCreditDetails','tmPhotoIdFile','tmDriveFile','tmScreeningQuestions','tmSaveScreeningQuestions','tmSaveReferenceCheck','tmAddContact','tmMarkEmailSent','tmGetVersion','tmSetGroup','tmDetachFromViewing','tmDeleteViewing','tmResendApplyLink','tmCancelApplyForm','tmCreateGroup','tmUpdateGroupDetails','tmAddToGroup','tmSetGroupArrival','tmSetAttendance','tmMoveGroupToViewing','tmSaveTribunalCheck','tmTribunalSearch','tmGetProgress','tmSaveAgreementSettings','tmSendAgreement','tmRefreshAgreement','tmCancelAgreement',
  'tmSaveProperty','tmSetPropertyActive','tmSaveLandlord','tmDeleteLandlord','tmSaveTenancy','tmDeleteTenancy','tmCreateTenancyFromGroup',
  'tmRecordBondPayment','tmDeleteBondPayment','tmSendBondReceipt','tmMarkBondLodged','tmSetBondNumber','tmSetBondMethod',
  'tmPreviewAgreement','tmResendAgreementLink','tmChangeTenants','tmRefreshTenancyChange','tmCancelTenancyChange','tmResendChangeLink','tmSetBondTask','tmTenancySummary','tmSaveTermsMaster','tmCopyTermsToProperties','tmBodyCorporateFiles','tmUploadBodyCorporateRules','tmTenantProfile','tmSaveTenantProfile','tmGroupDeletePlan','tmDeleteGroup','tmSetAdminPin','tmSavePerson','tmMergePeople','tmAgreementProgress','tmChangeProgress','tmSaveMyProfile','tmTestCreateGroup','tmTestSendForms','tmTestFillForm','tmTestApprove','tmTestSendAgreement','tmTestSignNext','tmTestStartChange','tmTestNextName','tmTestFinish'].forEach(function(n){
@@ -839,7 +839,8 @@ VIEWS.group = function(key){
   var g=groupOf(key); if(!g){ back(); return; }
   var x=groupStats(g), l=g.lead, n=g.members.length, unsent=g.members.filter(function(a){ return !sent(a) && canSend(a); });
   setTitle(n>1? groupName(key) : l.name);
-  var h='<div class="card"><div class="title">'+esc(l.address1)+(l.address2?', '+esc(l.address2):'')+'</div>'+
+  var h='<div class="card"><button class="btn sm ghost" type="button" data-act="group-edit" data-id="'+esc(key)+'" aria-label="Edit the group\u2019s details" title="Edit" style="float:right;margin:-4px -6px 0 8px">\u270F\uFE0F</button>'+
+    '<div class="title">'+esc(l.address1)+(l.address2?', '+esc(l.address2):'')+'</div>'+
     '<div class="small muted">'+[l.rent!==''?money(l.rent):'',l.tenancy,l.moveIn?'from '+fmtDate(l.moveIn):''].filter(Boolean).map(esc).join(' \u00B7 ')+'</div>'+
     '<div>'+originPill(l,true)+(l.sourceNotes?'<span class="pill">'+esc(l.sourceNotes)+'</span>':'')+'</div>'+
     '<div class="timeline" style="grid-template-columns:repeat(3,1fr)"><div class="on"><b>'+n+'</b>'+(n>1?'people':'person')+'</div>'+
@@ -856,6 +857,36 @@ VIEWS.group = function(key){
     '<div class="small muted" style="margin:6px 6px 0;text-align:center">Admin: for clearing test data. Removes their forms, uploads, agreement and tenancy.</div>';
   $('#app').innerHTML=h;
 };
+/* Edit a group's header: property, rent, tenancy length, move-in date, how they heard about it, notes (saved on every member) */
+function groupEditDialog(key){
+  var g=groupOf(key); if(!g) return; var l=g.lead, props=(S.st&&S.st.properties)||[], src=SOURCES.indexOf(l.source)>=0? l.source : 'Other';
+  var locked=l.agreement&&/^(Sent|Signed)$/.test(l.agreement.status);
+  var known=props.some(function(p){ return p.propertyId&&p.propertyId===l.propertyId; });
+  var m=modal('<div class="title" style="font-size:1.1rem;margin-block-end:10px">Edit details</div>'+
+    '<label class="fld"><span>Property</span><select id="geProp"'+(locked?' disabled':'')+'>'+(known?'':'<option value="">'+esc(l.address1||'No property')+' (as entered)</option>')+
+      props.map(function(p){ return '<option value="'+esc(p.propertyId)+'"'+(p.propertyId===l.propertyId?' selected':'')+'>'+esc(propLabel(p))+'</option>'; }).join('')+'</select></label>'+
+    (locked?'<div class="small muted" style="margin:-6px 0 10px">The agreement has been sent, so the property can\u2019t be changed.</div>':'')+
+    '<div class="grid2"><label class="fld"><span>Rent per week ($)</span><input type="number" inputmode="decimal" min="0" step="1" id="geRent" value="'+esc(l.rent)+'"></label>'+
+    '<label class="fld"><span>Length of tenancy</span><select id="geTen">'+(TENANCY.indexOf(l.tenancy)<0&&l.tenancy?'<option selected>'+esc(l.tenancy)+'</option>':'')+
+      TENANCY.map(function(t){ return '<option'+(t===l.tenancy?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+'</select></label></div>'+
+    '<label class="fld"><span>Preferred move-in date (optional)</span><input type="date" id="geMove" value="'+esc(String(l.moveIn||'').slice(0,10))+'"></label>'+
+    '<label class="fld" style="margin-block-end:4px"><span>How did they hear about it?</span></label><div class="seg c3" id="geSrc">'+
+      SOURCES.map(function(x){ return '<button type="button" data-src="'+esc(x)+'" class="'+(x===src?'on':'')+'">'+esc(x)+'</button>'; }).join('')+'</div>'+
+    '<label class="fld"><span>Notes (optional)</span><input type="text" id="geNotes" value="'+esc(l.sourceNotes||'')+'" placeholder="e.g. friend of the current tenants"></label>'+
+    '<div id="geErr" class="err"></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" type="button" data-ge="cancel">Cancel</button><button class="btn primary" type="button" data-ge="save">Save</button></div>');
+  // picking a property fills in its usual rent and tenancy length (still editable)
+  $('#geProp',m).onchange=function(){ var p=props.filter(function(x){ return x.propertyId===this.value; },this)[0]; if(!p) return;
+    if(p.rent!==''&&p.rent!=null) $('#geRent',m).value=p.rent; if(p.tenancy&&TENANCY.indexOf(p.tenancy)>=0) $('#geTen',m).value=p.tenancy; };
+  m.addEventListener('click',function(e){
+    var b=e.target.closest('[data-src]'); if(b){ src=b.getAttribute('data-src'); [].forEach.call(m.querySelectorAll('[data-src]'),function(x){ x.classList.toggle('on',x===b); }); return; }
+    var a=e.target.closest('[data-ge]'); if(!a) return;
+    if(a.getAttribute('data-ge')==='cancel') return m.remove();
+    var d={propertyId:$('#geProp',m).value,rent:$('#geRent',m).value.trim(),tenancy:$('#geTen',m).value,moveIn:$('#geMove',m).value,source:src,notes:$('#geNotes',m).value.trim()};
+    if(d.rent!==''&&!(+d.rent>=0)){ $('#geErr',m).textContent='Check the rent per week.'; return; }
+    busy(a,'Saving',api.tmUpdateGroupDetails(key,d)).then(function(st){ m.remove(); apply(st); toast('Details saved'); keepScroll(render); })
+      .catch(function(x){ $('#geErr',m).textContent=x&&x.message||'Couldn\u2019t save'; });
+  });
+}
 /* Admin delete: shows exactly what goes, then asks for the admin PIN when forms were submitted, the agreement signed or a tenancy exists */
 function groupDeleteDialog(key,btn){
   return busy(btn,'Checking',api.tmGroupDeletePlan(key)).then(function(p){
@@ -3617,6 +3648,7 @@ document.addEventListener('click',function(e){
   if(act==='tfilter'){ S.tfilter=id; return render(); }
   if(act==='tenancy') return go('tenancy',id);
   if(act==='tenant-profile'){ S.tp=null; return go('tenantProfile',id); }
+  if(act==='group-edit') return groupEditDialog(id);
   if(act==='group-delete') return groupDeleteDialog(id,t);
   if(act==='progress-preview'||act==='change-progress') return busy(t,'Loading',act==='progress-preview'?api.tmAgreementProgress(id):api.tmChangeProgress(id))
     .then(function(r){ previewDialog('Signing progress: '+r.signed+' of '+r.signers+' signed',r.html); }).catch(function(){});
@@ -4141,6 +4173,10 @@ var Demo = {
       case 'tmRefresh': return done({checked:0,results:[],state:Demo.state(d)});
       case 'tmUpdateApplication': var u=d.applications.find(function(x){return x.ref===a[0];}); if(a[1].decision!==undefined) u.decision=a[1].decision; if(a[1].decisionNotes!==undefined) u.decisionNotes=a[1].decisionNotes; if(a[1].creditCheck!==undefined) u.creditCheck=a[1].creditCheck; if(a[1].courtFines!==undefined) u.courtFines=a[1].courtFines;
         if(a[1].applyToGroup) d.applications.forEach(function(x){ if((x.group||x.ref)===(u.group||u.ref)){ x.decision=u.decision; x.decisionNotes=u.decisionNotes; } }); return done(Demo.state(d));
+      case 'tmUpdateGroupDetails': var gx=a[1], gp=(d.properties||[]).filter(function(p){ return p.propertyId===gx.propertyId; })[0];
+        d.applications.forEach(function(x){ if((x.group||x.ref)!==a[0]) return; if(gp){ x.propertyId=gp.propertyId; x.address1=gp.address1; x.address2=gp.address2; }
+          x.rent=gx.rent===''?'':+gx.rent; x.tenancy=gx.tenancy; x.moveIn=gx.moveIn?gx.moveIn+'T00:00:00.000Z':''; x.source=gx.source; x.sourceNotes=gx.notes; });
+        return done(Demo.state(d));
       case 'tmGetReferences': return done(Demo.refs(d,a[0]));
       case 'tmScreeningQuestions': return done({sets:JSON.parse(JSON.stringify(d.questions)),legacy:false});
       case 'tmSaveScreeningQuestions': d.questions=a[0].map(function(q,i){ return {id:q.id||('QS-n'+i),name:q.name.trim(),note:q.note||'',flags:q.kind==='Red flags',usedFor:q.kind==='Red flags'?[]:q.usedFor.slice(),items:q.items.map(function(x){ return String(x).trim(); }).filter(String)}; }); return done({sets:JSON.parse(JSON.stringify(d.questions)),legacy:false});

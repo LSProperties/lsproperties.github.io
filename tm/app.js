@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.16.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.16.3';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1534,14 +1534,16 @@ var ESIGN_TERMS=[['rentPaymentDetails','How rent is paid',true,'e.g. Weekly in a
 var INS_AREAS=[['ceiling','Ceiling'],['underfloor','Underfloor'],['walls','Walls']];
 var INS_TYPES=['Glass wool batts','Polyester batts','Wool batts','Polystyrene','Foil','Loose fill','Blown-in','Reflective foil','Sheep wool'];
 var INS_REASONS={ceiling:['No ceiling cavity','Skillion roof with no access','Not safe to access'],underfloor:['Concrete floors','No floor cavity space','No access to the subfloor'],walls:['Walls lined and can\u2019t be checked without damage','Solid brick walls']};
-var GROUND_REASONS=['Concrete floors','No floor cavity space','No access to the subfloor'];
+var GROUND_REASONS=['A professional installer has confirmed it isn\u2019t reasonably practicable to install one','Too little space under the house to install one','No access to the subfloor'];
 var INS_FIELDS=['status','type','rValue','thickness','installed','lastInspected','condition','conditionNotes','partialNotes','reason','layers','type2','rValue2','thickness2','installed2'];   // layers '2' = a second layer (ceiling)
-var HH_FIELDS=['complianceDate','heatingComplies','heatingCapacity','heatingProvided','heater1','heater2','toleranceApplies','toleranceKw','toleranceReason','heatingExemptReason','additionalHeating','ventilation','ventilationNotes','kitchenFan','bathroomFan','fanNotes','gutters','guttersNotes','groundCover','groundCoverReason','drafts','openFireplace','fireplaceNotes'];
+var HH_FIELDS=['complianceDate','heatingComplies','heatingCapacity','heatingProvided','heater1','heater2','toleranceApplies','toleranceKw','toleranceReason','heatingExemptReason','additionalHeating','ventilation','ventilationNotes','kitchenFan','bathroomFan','fanNotes','gutters','guttersNotes','enclosedSubfloor','groundCover','groundCoverReason','drafts','draughtFree','draughtNotes','openFireplace','fireplaceNotes'];
 function blankIns(){ var o={}; INS_AREAS.forEach(function(a){ o[a[0]]={}; INS_FIELDS.forEach(function(k){ o[a[0]][k]=''; }); }); return o; }
 function blankHH(){ var o={}; HH_FIELDS.forEach(function(k){ o[k]=''; }); return o; }
 function insOf(v){ var o=blankIns(); INS_AREAS.forEach(function(a){ var x=(v||{})[a[0]]||{}; INS_FIELDS.forEach(function(k){ if(x[k]!=null) o[a[0]][k]=x[k]; }); }); return o; }
 function hhOf(v){ var o=blankHH(); v=v||{}; HH_FIELDS.forEach(function(k){ if(v[k]!=null) o[k]=v[k]; });
-  if(!o.heatingComplies && (tx(o.heater1)||tx(o.heatingCapacity))) o.heatingComplies='yes';   // before 3.16.0 every property complied
+  if(!o.heatingComplies && (tx(o.heater1)||tx(o.heatingCapacity))) o.heatingComplies='yes';
+  if(!o.enclosedSubfloor && o.groundCover) o.enclosedSubfloor='yes';
+  if(!o.draughtFree && tx(o.drafts)) o.draughtFree='yes';   // a statement written before 3.16.2 said it was free of draughts   // answered before 3.16.2: the barrier question implied an enclosed subfloor   // before 3.16.0 every property complied
   if(o.ventilation&&['yes','partial'].indexOf(o.ventilation)<0){ if(!o.ventilationNotes) o.ventilationNotes=o.ventilation; o.ventilation=''; }   // 2.23.0 free text
   return o; }
 function tx(v){ return String(v==null?'':v).trim(); }
@@ -1583,8 +1585,10 @@ function hhProblems(v){
   if(!h.bathroomFan) out.push('the bathroom extractor fan');
   if((h.kitchenFan==='none'||h.bathroomFan==='none')&&!tx(h.fanNotes)) out.push('notes on the missing extractor fan');
   if(!h.gutters) out.push('whether the gutters and downpipes drain to an appropriate outfall'); else if(h.gutters==='no'&&!tx(h.guttersNotes)) out.push('notes on the gutters and downpipes');
-  if(!h.groundCover) out.push('whether there\u2019s a ground moisture barrier'); else if(h.groundCover==='no'&&!tx(h.groundCoverReason)) out.push('why there\u2019s no ground moisture barrier');
-  if(!tx(h.drafts)) out.push('a draught-stopping statement');
+  if(!h.enclosedSubfloor) out.push('whether there\u2019s an enclosed subfloor');
+  else if(h.enclosedSubfloor==='yes'){ if(!h.groundCover) out.push('whether there\u2019s a ground moisture barrier'); else if(h.groundCover==='no'&&!tx(h.groundCoverReason)) out.push('why there\u2019s no ground moisture barrier'); }
+  if(!h.draughtFree) out.push('whether the property is free from gaps or holes that allow noticeable draughts');
+  else if(h.draughtFree==='no'&&!tx(h.draughtNotes)) out.push('the gaps or holes that allow draughts');
   if(!h.openFireplace) out.push('whether there are any open fireplaces');
   return out;
 }
@@ -1616,8 +1620,9 @@ function hhText(v,landlordName){ var h=hhOf(v), heaters=[tx(h.heater1),tx(h.heat
     'Ventilation: '+(h.ventilation==='yes'?'All habitable spaces meet the ventilation standard.'+(tx(h.ventilationNotes)?' '+sentence(h.ventilationNotes):''):h.ventilation==='partial'?'Partly. '+sentence(h.ventilationNotes):'Not stated.')+
       ' Kitchen: '+(FAN_TEXT[h.kitchenFan]||'not stated')+'. Bathroom: '+(FAN_TEXT[h.bathroomFan]||'not stated')+'.'+((h.kitchenFan==='none'||h.bathroomFan==='none')&&tx(h.fanNotes)?' '+sentence(h.fanNotes):''),
     'Moisture and drainage: '+(h.gutters==='yes'?'Gutters and downpipes efficiently drain water to an appropriate outfall.':h.gutters==='no'?'Gutters and downpipes do not efficiently drain water to an appropriate outfall.'+(tx(h.guttersNotes)?' '+sentence(h.guttersNotes):''):'Gutters and downpipes not stated.')+
-      ' Ground moisture barrier: '+(h.groundCover==='yes'?'installed.':h.groundCover==='no'?'none.'+(tx(h.groundCoverReason)?' Reason: '+sentence(h.groundCoverReason):''):'not stated.'),
-    'Draught stopping: '+sentence(tx(h.drafts)||'Not stated')+' Open fireplaces: '+(FIREPLACE_TEXT[h.openFireplace]||'not stated.')+(h.openFireplace&&h.openFireplace!=='none'&&tx(h.fireplaceNotes)?' '+sentence(h.fireplaceNotes):''),
+      (h.enclosedSubfloor==='no'?' No enclosed subfloor, so a ground moisture barrier isn\u2019t required.':
+       (h.enclosedSubfloor==='yes'?' Enclosed subfloor: yes.':'')+' Ground moisture barrier: '+(h.groundCover==='yes'?'installed.':h.groundCover==='no'?'none.'+(tx(h.groundCoverReason)?' Reason: '+sentence(h.groundCoverReason):''):'not stated.')),
+    'Draught stopping: '+(h.draughtFree==='yes'?'The property is free from unintentional and unreasonable gaps or holes that allow noticeable draughts.':h.draughtFree==='no'?'The property is not free from unintentional and unreasonable gaps or holes that allow noticeable draughts: '+sentence(h.draughtNotes):'Not stated.')+' Open fireplaces: '+(FIREPLACE_TEXT[h.openFireplace]||'not stated.')+(h.openFireplace&&h.openFireplace!=='none'&&tx(h.fireplaceNotes)?' '+sentence(h.fireplaceNotes):''),
     'The healthy homes compliance date for this tenancy is: '+(h.complianceDate?dayText(h.complianceDate):'not stated')+'.'].join('\n'); }
 /* Editor pieces for the built-in agreement terms */
 function chattelsHtml(list){
@@ -1727,11 +1732,14 @@ function hhHtml(h){
     '<div class="sasec">Moisture and drainage</div>'+fldLabel('Do the gutters and downpipes efficiently drain water to an appropriate outfall?')+
     segHtml('hh-seg','gutters',h.gutters,[['yes','Yes'],['no','No']])+
     (h.gutters==='no'?'<label class="fld"><span>Notes (required)</span><input type="text" data-hh="guttersNotes" value="'+esc(h.guttersNotes)+'"></label>':'')+
-    fldLabel('Ground moisture barrier (damp-proof ground cover)')+segHtml('hh-seg','groundCover',h.groundCover,[['yes','Yes, installed'],['no','No']])+
-    (h.groundCover==='no'?'<label class="fld"><span>Why there isn\u2019t one (required)</span><input type="text" list="groundReasons" data-hh="groundCoverReason" value="'+esc(h.groundCoverReason)+'" placeholder="e.g. Concrete floors"></label>'+
+    fldLabel('Is there an enclosed subfloor?')+segHtml('hh-seg','enclosedSubfloor',h.enclosedSubfloor,[['yes','Yes'],['no','No']])+
+    (h.enclosedSubfloor==='yes'?'':'<div class="small muted" style="margin-block:-6px 10px">Enclosed means air can\u2019t flow freely in and out along at least half of the subfloor\u2019s perimeter. A concrete slab has no subfloor.</div>')+
+    (h.enclosedSubfloor!=='yes'?'':fldLabel('Ground moisture barrier (damp-proof ground cover)')+segHtml('hh-seg','groundCover',h.groundCover,[['yes','Yes, installed'],['no','No']]))+
+    (h.enclosedSubfloor==='yes'&&h.groundCover==='no'?'<label class="fld"><span>Why there isn\u2019t one (required)</span><input type="text" list="groundReasons" data-hh="groundCoverReason" value="'+esc(h.groundCoverReason)+'" placeholder="e.g. Too little space under the house to install one"></label>'+
       '<datalist id="groundReasons">'+GROUND_REASONS.map(function(r){ return '<option value="'+esc(r)+'">'; }).join('')+'</datalist>':'')+
     '<div class="sasec">Draught stopping</div>'+
-    '<label class="fld"><span>Draught-stopping statement</span><textarea data-hh="drafts" rows="2" placeholder="e.g. No unreasonable gaps or holes in walls, ceilings, windows, floors or doors that cause noticeable draughts.">'+esc(h.drafts)+'</textarea></label>'+
+    fldLabel('Is the property free from unintentional gaps or holes that allow noticeable draughts?')+segHtml('hh-seg','draughtFree',h.draughtFree,[['yes','Yes'],['no','No']])+
+    (h.draughtFree==='no'?'<label class="fld"><span>Explain (required)</span><textarea data-hh="draughtNotes" rows="2" placeholder="e.g. Gap under the back door; a draught seal is being fitted in March.">'+esc(h.draughtNotes)+'</textarea></label>':'')+
     fldLabel('Any open fireplaces?')+segHtml('hh-seg','openFireplace',h.openFireplace,[['none','None'],['closed','Yes, closed off or chimney blocked'],['usable','Yes, can be used (agreed in writing)']])+
     (h.openFireplace==='usable'?'<div class="small muted" style="margin-block:-6px 8px">The healthy homes standards require an open fireplace to be closed off or its chimney blocked, unless you and the tenant agree in writing that it can be used. Put that in the additional terms.</div>':'')+
     (h.openFireplace&&h.openFireplace!=='none'?'<label class="fld"><span>Fireplace notes (optional)</span><input type="text" data-hh="fireplaceNotes" value="'+esc(h.fireplaceNotes)+'" placeholder="e.g. Lounge fireplace, chimney blocked with a sealed plate"></label>':'');

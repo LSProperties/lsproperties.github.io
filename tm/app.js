@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.16.5';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.16.6';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1559,8 +1559,7 @@ function insProblems(v){
       if(x.layers==='2'){ if(!tx(x.type2)) out.push('the second '+l+' layer\u2019s insulation type');
         if(tx(x.rValue2)===''&&tx(x.thickness2)==='') out.push('the second '+l+' layer\u2019s R-value (or its thickness if the R-value isn\u2019t known)');
         if(!x.installed2) out.push('when the second '+l+' layer was installed'); }
-      if(!opt&&!x.lastInspected) out.push('when the '+l+' insulation was last inspected');
-      if(!opt&&!x.condition) out.push('whether the '+l+' insulation is in reasonable condition');
+      if(a[0]==='ceiling'&&!x.condition) out.push('whether the '+l+' insulation is in reasonable condition');
       else if(x.condition==='no'&&!tx(x.conditionNotes)) out.push('what\u2019s wrong with the '+l+' insulation\u2019s condition'); }
     else if(x.status==='none'&&a[0]!=='walls'&&!tx(x.reason)) out.push('why there\u2019s no '+l+' insulation');
     else if(x.status==='unknown'&&!tx(x.reason)) out.push('why the '+l+' insulation isn\u2019t known'); });
@@ -1592,6 +1591,7 @@ function hhProblems(v){
   return out;
 }
 function kwText(v){ return tx(v)===''||!isFinite(+v)? 'not stated' : String(+v)+' kW'; }
+function inspText(v){ v=tx(v); return /^\d{4}-\d{2}-\d{2}$/.test(v)? dayText(v) : trimEnd(v); }   // a date saved before 3.16.6, or free text
 function sentence(s){ s=tx(s); return s&&!/[.!?]$/.test(s)? s+'.' : s; }
 function trimEnd(s){ return tx(s).replace(/[.\s]+$/,''); }
 function monthText(ym){ var p=String(ym||'').split('-'); return p.length===2? MONTHS[+p[1]-1]+' '+p[0] : ''; }
@@ -1599,10 +1599,10 @@ function dayText(ymd){ var p=String(ymd||'').split('-'); return p.length===3? (+
 function insText(v){ var ins=insOf(v); return INS_AREAS.map(function(a){ var x=ins[a[0]];
   if((x.status==='insulated'||x.status==='partial')&&x.layers==='2'){
     var layer=function(t,r,th,inst){ return [tx(t),tx(r)!==''?'R'+tx(r):tx(th)!==''?tx(th)+' mm thick (R-value not known)':'',inst?'installed '+monthText(inst):''].filter(Boolean).join(', '); };
-    var rest=[x.lastInspected?'Last inspected '+dayText(x.lastInspected):'',x.condition==='yes'?'in reasonable condition':x.condition==='no'?'not in reasonable condition'+(tx(x.conditionNotes)?' ('+trimEnd(x.conditionNotes)+')':''):''].filter(Boolean).join(', ');
+    var rest=[tx(x.lastInspected)?'Last inspected '+inspText(x.lastInspected):'',x.condition==='yes'?'in reasonable condition':x.condition==='no'?'not in reasonable condition'+(tx(x.conditionNotes)?' ('+trimEnd(x.conditionNotes)+')':''):''].filter(Boolean).join(', ');
     return a[1]+': '+(x.status==='partial'?'Partly insulated'+(tx(x.partialNotes)?' ('+trimEnd(x.partialNotes)+')':'')+'. ':'')+'Two layers. Layer 1: '+layer(x.type,x.rValue,x.thickness,x.installed)+'. Layer 2: '+layer(x.type2,x.rValue2,x.thickness2,x.installed2)+'.'+(rest?' '+rest.charAt(0).toUpperCase()+rest.slice(1)+'.':''); }
   if(x.status==='insulated'||x.status==='partial'){
-    var bits=[tx(x.type),tx(x.rValue)!==''?'R'+tx(x.rValue):tx(x.thickness)!==''?tx(x.thickness)+' mm thick (R-value not known)':'',x.installed?'installed '+monthText(x.installed):'',x.lastInspected?'last inspected '+dayText(x.lastInspected):'',
+    var bits=[tx(x.type),tx(x.rValue)!==''?'R'+tx(x.rValue):tx(x.thickness)!==''?tx(x.thickness)+' mm thick (R-value not known)':'',x.installed?'installed '+monthText(x.installed):'',tx(x.lastInspected)?'last inspected '+inspText(x.lastInspected):'',
       x.condition==='yes'?'in reasonable condition':x.condition==='no'?'not in reasonable condition'+(tx(x.conditionNotes)?' ('+trimEnd(x.conditionNotes)+')':''):''].filter(Boolean);
     return a[1]+': '+(x.status==='partial'?'Partly insulated'+(tx(x.partialNotes)?' ('+trimEnd(x.partialNotes)+')':'')+'. ':'')+bits.join(', ')+'.'; }
   if(x.status==='none') return a[1]+': No insulation.'+(tx(x.reason)?' Reason: '+sentence(x.reason):'');
@@ -1696,10 +1696,10 @@ function insAreaHtml(key,label,x){
         '<label class="fld"><span>Thickness (mm, if R-value not known)</span><input type="number" inputmode="numeric" min="0" data-ins="'+key+'.thickness2" value="'+esc(x.thickness2)+'" placeholder="e.g. 140"></label></div>'+
         '<label class="fld"><span>Installed (month and year)</span><input type="month" data-ins="'+key+'.installed2" value="'+esc(x.installed2)+'"></label>'+
         '<div class="small" style="font-weight:750;margin-block:10px 6px">Whole ceiling</div>'+
-        '<label class="fld"><span>Last inspected</span><input type="date" data-ins="'+key+'.lastInspected" value="'+esc(x.lastInspected)+'"></label>'
+        '<label class="fld"><span>Last inspected (optional)</span><input type="text" data-ins="'+key+'.lastInspected" value="'+esc(x.lastInspected)+'" placeholder="e.g. June 2026, or Unknown"></label>'
       :'<div class="grid2"><label class="fld"><span>Installed (month and year)</span><input type="month" data-ins="'+key+'.installed" value="'+esc(x.installed)+'"></label>'+
-      '<label class="fld"><span>Last inspected'+(key==='walls'?' (optional)':'')+'</span><input type="date" data-ins="'+key+'.lastInspected" value="'+esc(x.lastInspected)+'"></label></div>')+
-      fldLabel('In reasonable condition?'+(key==='walls'?' (optional)':''))+segHtml('ins-seg',key+'.condition',x.condition,[['yes','Yes'],['no','No']]);
+      '<label class="fld"><span>Last inspected (optional)</span><input type="text" data-ins="'+key+'.lastInspected" value="'+esc(x.lastInspected)+'" placeholder="e.g. June 2026, or Unknown"></label></div>')+
+      fldLabel('In reasonable condition?'+(key!=='ceiling'?' (optional)':''))+segHtml('ins-seg',key+'.condition',x.condition,[['yes','Yes'],['no','No']]);
     if(x.condition==='no') h+='<label class="fld" style="margin:0"><span>What\u2019s wrong with it (required)</span><input type="text" data-ins="'+key+'.conditionNotes" value="'+esc(x.conditionNotes)+'" placeholder="e.g. Batts displaced near the hatch"></label>';
   } else if(x.status==='none'||x.status==='unknown') h+='<label class="fld" style="margin:0"><span>'+(x.status==='none'?(key==='walls'?'Reason (optional)':'Why there\u2019s no insulation (required)'):'Why it isn\u2019t known (required)')+'</span>'+
     '<input type="text" list="insReason-'+key+'" data-ins="'+key+'.reason" value="'+esc(x.reason)+'" placeholder="'+esc((INS_REASONS[key]||[])[0]||'')+'"></label>'+
@@ -1895,8 +1895,7 @@ function peNeeds(e){
       if(!opt&&tx(x.rValue)===''&&tx(x.thickness)===''){ add(p+'rValue'); add(p+'thickness'); }
       if(!x.installed) add(p+'installed');
       if(x.layers==='2'){ if(!tx(x.type2)) add(p+'type2'); if(tx(x.rValue2)===''&&tx(x.thickness2)===''){ add(p+'rValue2'); add(p+'thickness2'); } if(!x.installed2) add(p+'installed2'); }
-      if(!opt&&!x.lastInspected) add(p+'lastInspected');
-      if(!opt&&!x.condition) add(p+'condition'); else if(x.condition==='no'&&!tx(x.conditionNotes)) add(p+'conditionNotes');
+      if(k==='ceiling'&&!x.condition) add(p+'condition'); else if(x.condition==='no'&&!tx(x.conditionNotes)) add(p+'conditionNotes');
     } else if((x.status==='none'&&!opt||x.status==='unknown')&&!tx(x.reason)) add(p+'reason'); });
   if(!h.complianceDate) add('hh:complianceDate');
   if(!h.heatingComplies) add('hh:heatingComplies');

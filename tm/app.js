@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.16.3';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.16.4';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1522,7 +1522,6 @@ function propProblem(p){
   if(r>0&&b>r*4+0.005) return 'The bond can\u2019t be more than 4 weeks\u2019 rent ($'+money2(r*4)+').';
   if(!isNaN(o)&&(o<1||Math.floor(o)!==o)) return 'Maximum occupants must be a whole number.';
   if(p.excess!==''&&p.excess!=null&&!(+p.excess>=0)) return 'Check the insurance excess.';
-  if(p.insulationDate&&p.insulationDate>todayYmd()) return 'The insulation inspection date can\u2019t be in the future.';
   return '';
 }
 var PE_FIELDS=['propertyId','name','address1','address2','notes','rent','tenancy','bond','maxOccupants','insurer','insurancePolicy','excess','insulationDate','templateId','templateTitle','landlord',
@@ -1850,7 +1849,7 @@ VIEWS.propEdit = function(id){
       '<div class="small muted" style="margin:0 6px 8px">For each part of the house: is it insulated, and if so its type, R-value (or thickness if that isn\u2019t known) and when it was installed. If there\u2019s none, say why for the ceiling and underfloor.</div>'+
       INS_AREAS.map(function(a){ return insAreaHtml(a[0],a[1],e.insulation[a[0]]); }).join('')+
       '<datalist id="insTypes">'+INS_TYPES.map(function(x){ return '<option value="'+esc(x)+'">'; }).join('')+'</datalist>'+
-      '<div class="card small"><label class="fld"><span>Insulation inspection date (whole house, optional)</span><input type="date" data-pe="insulationDate" value="'+esc(e.insulationDate)+'"></label>'+
+      '<div class="card small">'+   // 3.16.4: no whole-house inspection date; each area has its own
       '<div class="muted" style="margin-block-end:4px">On the agreement:</div><div id="insPreview" style="white-space:pre-line">'+esc(insText(e.insulation))+'</div></div>'+SECT_END;
     h+=sectStart('pe-hh','Healthy homes statement',pill(hhProblems(e.healthyHomes).length))+'<div class="card">'+hhHtml(e.healthyHomes)+
       '<div class="small" style="margin-block-start:12px"><div class="muted" style="margin-block-end:4px">On the agreement:</div><div id="hhPreview" style="white-space:pre-line">'+esc(hhText(e.healthyHomes,e.landlord))+'</div></div></div>'+SECT_END;

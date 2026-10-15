@@ -9,7 +9,9 @@
   var ROWS = [['An application form is submitted', '', 'applications', 'applicationsAll'],
               ['Someone signs or declines an agreement', 'Says who is still to sign', 'signing', 'signingAll'],
               ['An agreement is ready for me to sign', '', 'toSign', ''],
-              ['An inspection is submitted', 'By someone else', '', 'inspections']];
+              ['An inspection is submitted', 'By someone else', '', 'inspections'],
+              ['Morning summary at 8 am', 'Bonds and Bond Hub notices due, fixed terms ending, agreements waiting on someone', 'digest', 'digestAll'],
+              ['A device signs in to Rentals', 'Mine = my account', 'signIns', 'signInsAll']];
   var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   var can = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -39,7 +41,7 @@
           (on ? '<button class="btn" type="button" data-rp-act="test">Send a test</button><button class="btn" type="button" data-rp-act="off">Turn off</button>' : '') +
           '</div></div>' +
         '<div class="card"><div class="title">Tell me when</div>' +
-          '<div class="small muted" style="margin-block:4px 6px"><b>Mine</b> = forms and agreements you sent. <b>Everyone’s</b> = the ones other people sent too. Applies to all your devices.</div>' +
+          '<div class="small muted" style="margin-block:4px 6px"><b>Mine</b> = forms, agreements and tenancies you sent. <b>Everyone’s</b> = the ones other people sent too. Applies to all your devices.</div>' +
           '<table style="width:100%;border-collapse:collapse"><thead><tr><th></th><th class="small" style="width:64px;font-weight:700">Mine</th><th class="small" style="width:84px;font-weight:700">Everyone’s</th></tr></thead><tbody>' +
           ROWS.map(function (r) {
             return '<tr style="border-block-start:1px solid var(--line, #e2e8f0)"><td style="padding:10px 4px 10px 0">' + esc(r[0]) + (r[1] ? '<div class="small muted">' + esc(r[1]) + '</div>' : '') + '</td>' + cell(r[2]) + cell(r[3]) + '</tr>';

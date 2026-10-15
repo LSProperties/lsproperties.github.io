@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.15.3';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.15.4';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -126,8 +126,8 @@ function render(){
   var pk=paintKey(); Paint.same=pk===Paint.key; Paint.key=pk;   // the same screen again: update in place
   // filter strips scroll sideways on a phone: remember where they were so a redraw doesn't jump back to the start
   var view=S.cur.view+'|'+S.tab, keep=S.filterView===view? [].map.call(document.querySelectorAll('.filters'),function(f){ return f.scrollLeft; }) : [];
-  var fn=VIEWS[S.cur.view]; setFooter(null);
-  Promise.resolve(fn(S.cur.arg)).then(function(){ S.filterView=view; keepFilters(keep); })
+  var fn=VIEWS[S.cur.view], cur=S.cur; setFooter(null);
+  Promise.resolve(fn(S.cur.arg)).then(function(){ S.filterView=view; keepFilters(keep); if(S.cur===cur) Paint.key=paintKey(); })   // the view may have chosen its tab
     .catch(function(e){ $('#app').innerHTML='<div class="card">Couldn\u2019t open this screen: '+esc(e.message)+'</div>'; });
 }
 /* puts each filter strip back where it was, then makes sure the chosen filter can be seen */

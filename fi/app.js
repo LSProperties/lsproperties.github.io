@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.18.8';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.18.9';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -369,8 +369,9 @@ function paintInto(el,html){
 })();
 function render(){
   var pk=paintKey(); Paint.same=pk===Paint.key; Paint.key=pk;   // the same screen again: update in place
-  var v=S.cur.view, fn=VIEWS[v]; setFooter(null);
-  Promise.resolve(fn(S.cur.arg)).catch(function(e){ $('#app').innerHTML='<div class="card">Something went wrong: '+esc(e.message)+'</div>'; });
+  var v=S.cur.view, fn=VIEWS[v], cur=S.cur; setFooter(null);
+  Promise.resolve(fn(S.cur.arg)).then(function(){ if(S.cur===cur) Paint.key=paintKey(); })   // the view may have chosen its tab
+    .catch(function(e){ $('#app').innerHTML='<div class="card">Something went wrong: '+esc(e.message)+'</div>'; });
 }
 
 /* ================= Draft helpers ================= */

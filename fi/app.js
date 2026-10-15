@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.18.9';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.18.10';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -324,7 +324,9 @@ function setTitle(t){ $('#title').textContent=t; $('#backBtn').classList.toggle(
    When the same screen is drawn again (fresh data from the server, a save, a tick), only what changed is updated in
    place: cards don't replay their entrance animation, pictures don't reload, open sections stay open, the box being
    typed in is left alone and the page doesn't jump. Going to a different screen draws it fresh, with its animation.
-   Views keep writing $('#app').innerHTML as before; the main area and the footer route that through paintInto(). */
+   Views keep writing $('#app').innerHTML as before; the main area and the footer route that through paintInto(), and
+   so does any element marked data-paint (a box or list updated on its own). A data-paint box that is also data-later is
+   filled after the screen draws (references, last inspection): a whole-screen update leaves what it has loaded alone. */
 var Paint={key:'',same:false};
 function paintKey(){ return S.cur.view+'|'+JSON.stringify(S.cur.arg===undefined?null:S.cur.arg)+'|'+(S.tab||''); }
 function paintKeyOf(n){ return n.nodeType===1? n.tagName+'#'+(n.id||'')+'@'+(n.getAttribute('data-id')||'')+'@'+(n.getAttribute('data-key')||'') : '#'+n.nodeType; }
@@ -346,6 +348,7 @@ function paintNode(o,n){
   var tag=o.tagName, active=o===document.activeElement, keepOpen=tag==='DETAILS';
   [].slice.call(o.attributes).forEach(function(a){ if(!n.hasAttribute(a.name) && !(keepOpen && a.name==='open')) o.removeAttribute(a.name); });
   [].slice.call(n.attributes).forEach(function(a){ if(keepOpen && a.name==='open') return; if(o.getAttribute(a.name)!==a.value) o.setAttribute(a.name,a.value); });
+  if(o._painted!==undefined && o.hasAttribute('data-later')) return;   // filled on its own: keep what it has loaded
   if(tag==='TEXTAREA'){ if(!active && o.value!==n.value) o.value=n.value; return; }
   if(tag==='INPUT' && !active){
     if(o.type==='checkbox'||o.type==='radio') o.checked=n.hasAttribute('checked');
@@ -361,6 +364,8 @@ function paintInto(el,html){
 }
 (function(){
   var d=Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML');
+  Object.defineProperty(Element.prototype,'innerHTML',{configurable:true,get:function(){ return d.get.call(this); },
+    set:function(h){ if(this.nodeType===1 && this.hasAttribute('data-paint')) paintInto(this,String(h)); else d.set.call(this,h); }});
   ['app','footerIn'].forEach(function(id){
     var el=document.getElementById(id); if(!el) return;
     Object.defineProperty(el,'innerHTML',{configurable:true,get:function(){ return d.get.call(this); },
@@ -895,7 +900,7 @@ function tabBar(nProg){
   return '<div class="tabbar">'+b('new','＋','New')+b('progress','⏳','In progress',nProg)+b('submitted','✅','Submitted')+b('setup','⚙','Setup')+'</div>';
 }
 function newTabHtml(){
-  return '<input type="search" id="propSearch" placeholder="Search properties…" style="margin-block-end:10px"><div id="propList">'+propListHtml('')+'</div>';
+  return '<input type="search" id="propSearch" placeholder="Search properties…" style="margin-block-end:10px"><div id="propList" data-paint>'+propListHtml('')+'</div>';
 }
 function progressTabHtml(drafts,remote){
   var h='';
@@ -922,7 +927,7 @@ function submittedTabHtml(){
   var h='<div class="row" style="gap:8px;margin-block-end:10px"><input type="search" id="subSearch" class="grow" placeholder="Search submitted…" value="'+esc(S.subQ||'')+'" style="margin:0">'+
     '<div class="row" style="gap:4px;background:var(--chip);padding:3px;border-radius:99px;flex:none">'+
     ['all','mine'].map(function(f){ var on=S.recentFilter===f; return '<button type="button" class="btn sm'+(on?' primary':'')+'" data-act="recent-filter" data-id="'+f+'" style="min-height:32px;border:0;border-radius:99px;box-shadow:none;'+(on?'':'background:transparent')+'">'+(f==='all'?'Everyone':'Mine')+'</button>'; }).join('')+'</div></div>';
-  return h+'<div id="subList">'+submittedListHtml()+'</div>';
+  return h+'<div id="subList" data-paint>'+submittedListHtml()+'</div>';
 }
 function submittedListHtml(){
   var q=String(S.subQ||'').trim().toLowerCase();
@@ -952,7 +957,7 @@ function setupTabHtml(){
 /* ---- Setup > Notifications (Rentals app only: the panel comes from ../push.js) ---- */
 VIEWS.notify = function(){
   setTitle('Notifications'); setFooter('<button class="btn" type="button" data-act="back">‹ Back</button>');
-  $('#app').innerHTML='<div id="rpNotify"></div>';
+  $('#app').innerHTML='<div id="rpNotify" data-paint></div>';
   if(window.RentalsPush) window.RentalsPush.mount($('#rpNotify'));
 };
 /* ---- a submitted inspection, read-only ---- */
@@ -1040,7 +1045,7 @@ VIEWS.start = function(pid){
     '<label class="fld"><span>Inspector name</span><input type="text" id="stInspector" value="'+esc(last)+'" autocomplete="name"></label>'+
     '<label class="fld"><span>Tenant(s) present / name (optional)</span><input type="text" id="stTenant"></label>'+
     '<div class="small muted">Start time will be recorded as '+esc(fmt(nowIso()))+'.</div></div>'+
-    '<div id="priorInfo"></div>';
+    '<div id="priorInfo" data-paint data-later></div>';
   setFooter('<button class="btn primary" data-act="begin" data-id="'+esc(p.id)+'" type="button">Begin inspection</button>');
   function showPrior(pr){ var box=$('#priorInfo'); if(!box) return;
     if(!pr||pr.none){ box.innerHTML='<div class="small muted" style="margin:4px 6px">No previous inspection found for this property.</div>'; return; }

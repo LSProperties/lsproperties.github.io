@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.15.4';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.15.5';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -79,7 +79,9 @@ window.addEventListener('beforeunload',function(ev){
    When the same screen is drawn again (fresh data from the server, a save, a tick), only what changed is updated in
    place: cards don't replay their entrance animation, pictures don't reload, open sections stay open, the box being
    typed in is left alone and the page doesn't jump. Going to a different screen draws it fresh, with its animation.
-   Views keep writing $('#app').innerHTML as before; the main area and the footer route that through paintInto(). */
+   Views keep writing $('#app').innerHTML as before; the main area and the footer route that through paintInto(), and
+   so does any element marked data-paint (a box or list updated on its own). A data-paint box that is also data-later is
+   filled after the screen draws (references, last inspection): a whole-screen update leaves what it has loaded alone. */
 var Paint={key:'',same:false};
 function paintKey(){ return S.cur.view+'|'+JSON.stringify(S.cur.arg===undefined?null:S.cur.arg)+'|'+(S.tab||''); }
 function paintKeyOf(n){ return n.nodeType===1? n.tagName+'#'+(n.id||'')+'@'+(n.getAttribute('data-id')||'')+'@'+(n.getAttribute('data-key')||'') : '#'+n.nodeType; }
@@ -101,6 +103,7 @@ function paintNode(o,n){
   var tag=o.tagName, active=o===document.activeElement, keepOpen=tag==='DETAILS';
   [].slice.call(o.attributes).forEach(function(a){ if(!n.hasAttribute(a.name) && !(keepOpen && a.name==='open')) o.removeAttribute(a.name); });
   [].slice.call(n.attributes).forEach(function(a){ if(keepOpen && a.name==='open') return; if(o.getAttribute(a.name)!==a.value) o.setAttribute(a.name,a.value); });
+  if(o._painted!==undefined && o.hasAttribute('data-later')) return;   // filled on its own: keep what it has loaded
   if(tag==='TEXTAREA'){ if(!active && o.value!==n.value) o.value=n.value; return; }
   if(tag==='INPUT' && !active){
     if(o.type==='checkbox'||o.type==='radio') o.checked=n.hasAttribute('checked');
@@ -116,6 +119,8 @@ function paintInto(el,html){
 }
 (function(){
   var d=Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML');
+  Object.defineProperty(Element.prototype,'innerHTML',{configurable:true,get:function(){ return d.get.call(this); },
+    set:function(h){ if(this.nodeType===1 && this.hasAttribute('data-paint')) paintInto(this,String(h)); else d.set.call(this,h); }});
   ['app','footerIn'].forEach(function(id){
     var el=document.getElementById(id); if(!el) return;
     Object.defineProperty(el,'innerHTML',{configurable:true,get:function(){ return d.get.call(this); },
@@ -1718,20 +1723,20 @@ VIEWS.propEdit = function(id){
       '<div class="grid2"><label class="fld"><span>Maximum occupants</span><input type="number" inputmode="numeric" min="1" data-pe="maxOccupants" value="'+esc(e.maxOccupants)+'"></label>'+
       '<label class="fld"><span>Length of tenancy</span><select data-pe="tenancy"><option value="">\u2014</option>'+tens.map(function(t){ return '<option'+(t===ten?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+
         (ten&&tens.indexOf(ten)<0?'<option selected>'+esc(ten)+'</option>':'')+'</select></label></div></div>';
-    h+='<div class="card" id="peBc">'+bcCardHtml(e)+'</div>';
+    h+='<div class="card" id="peBc" data-paint>'+bcCardHtml(e)+'</div>';
     if(e.unitTitle) loadBcFiles();
     if(id) h+='<div class="sep"></div><button class="btn block'+(p.active?' danger':'')+'" type="button" data-act="prop-active" data-id="'+esc(id)+'">'+(p.active?'Archive property':'Restore property')+'</button>'+
       '<button class="btn ghost block" type="button" data-act="prop-clone" data-id="'+esc(id)+'" style="margin-block-start:10px">\u29C9 Clone this property</button>';
   }
   else if(tab==='terms'){
-    h+='<div class="sasec" style="margin:4px 6px 8px">'+(esignOn()?'Landlord':'Landlord and DocHub template')+'</div><div class="card" id="peAgreement">'+peAgreementHtml()+'</div>';
+    h+='<div class="sasec" style="margin:4px 6px 8px">'+(esignOn()?'Landlord':'Landlord and DocHub template')+'</div><div class="card" id="peAgreement" data-paint>'+peAgreementHtml()+'</div>';
     h+='<div class="row" style="margin:14px 6px 8px;gap:8px"><div class="sasec grow" style="margin:0">Agreement terms'+(esignOn()?'':' (built-in signing)')+'</div>'+pill(String(e.rentPaymentDetails||'').trim()?0:1)+'</div><div class="card">'+
       (esignOn()?'':'<div class="small muted" style="margin-block-end:10px">Written into agreements sent with built-in signing. Not used by DocHub.</div>')+
       '<label class="fld"><span>'+esc(ESIGN_TERMS[0][1])+' (required)</span><textarea data-pe="rentPaymentDetails" rows="2" placeholder="'+esc(ESIGN_TERMS[0][3])+'">'+esc(e.rentPaymentDetails)+'</textarea></label>'+
       chattelsHtml(e.chattels)+
       ESIGN_TERMS.slice(1).map(function(x){ return '<label class="fld"><span>'+esc(x[1])+' (optional)</span><textarea data-pe="'+x[0]+'" rows="2" placeholder="'+esc(x[3])+'">'+esc(e[x[0]])+'</textarea></label>'; }).join('')+
       termsListHtml(e.additionalTerms)+'</div>';
-    h+='<div class="sasec" style="margin:14px 6px 8px">Utilities and rooms</div><div class="card" id="peUtil">'+utilitiesHtml(e)+'</div>';
+    h+='<div class="sasec" style="margin:14px 6px 8px">Utilities and rooms</div><div class="card" id="peUtil" data-paint>'+utilitiesHtml(e)+'</div>';
   }
   else if(tab==='insure'){
     h+='<div class="sasec" style="margin:4px 6px 8px">Insurance</div><div class="card">'+
@@ -1915,7 +1920,7 @@ VIEWS.setupQuestions = function(){
 /* Setup > Notifications (Rentals app only: the panel comes from ../push.js) */
 VIEWS.notify = function(){
   setTitle('Notifications'); setFooter('');
-  $('#app').innerHTML='<div id="rpNotify"></div>';
+  $('#app').innerHTML='<div id="rpNotify" data-paint></div>';
   if(window.RentalsPush) window.RentalsPush.mount($('#rpNotify'));
 };
 VIEWS.setupTerms = function(){
@@ -2574,20 +2579,20 @@ VIEWS.app = function(ref){
     (g&&g.members.length>1? '\uD83D\uDC65 '+esc(groupName(groupKey(a)))+' \u00B7 '+g.members.length+' people' : '\uD83D\uDE4B On their own')+'</div><div>'+originPill(g?g.lead:a,false)+
     (g&&g.lead.decision?'<span class="pill dec">'+esc(g.lead.decision)+'</span>':'')+'</div></div><span class="chev">\u203A</span></div></div>';
   if(a.status==='Finalized'){
-    h+=sectionHtml('refs','Reference checks',a.refs?checkedPill(a.refs):'','<div class="card" id="refBox"><div class="row"><span class="spin"></span><span class="small muted">Loading references\u2026</span></div></div>',false,
+    h+=sectionHtml('refs','Reference checks',a.refs?checkedPill(a.refs):'','<div class="card" id="refBox" data-paint data-later><div class="row"><span class="spin"></span><span class="small muted">Loading references\u2026</span></div></div>',false,
       !!(a.refs&&a.refs.total&&a.refs.done>=a.refs.total));
   } else if(sent(a)){
     h+='<div class="card small muted">Reference details appear here once '+esc(a.name.split(' ')[0])+' completes and signs the application form.</div>';
   }
-  h+=sectionHtml('tt','Tenancy Tribunal check',tribunalPill(a),'<div class="card" id="ttBox"><div class="row"><span class="spin"></span><span class="small muted">Preparing searches\u2026</span></div></div>',false,!!tribunalPill(a));
+  h+=sectionHtml('tt','Tenancy Tribunal check',tribunalPill(a),'<div class="card" id="ttBox" data-paint data-later><div class="row"><span class="spin"></span><span class="small muted">Preparing searches\u2026</span></div></div>',false,!!tribunalPill(a));
   h+=sectionHtml('credit','Credit check',(a.creditCheck?'<span class="pill">'+esc(a.creditCheck)+'</span>':'<span class="pill">Not recorded</span>')+finesPill(a),
-    '<div class="card"><div id="cxId" class="row wrap" style="gap:8px;align-items:center;margin-block-end:12px"><span class="small muted">Looking for their photo ID\u2026</span></div>'+
+    '<div class="card"><div id="cxId" data-paint data-later class="row wrap" style="gap:8px;align-items:center;margin-block-end:12px"><span class="small muted">Looking for their photo ID\u2026</span></div>'+
     '<div class="row" style="gap:8px;align-items:flex-end"><label class="fld grow" style="margin:0"><span>Credit check score</span><input type="text" id="apCredit" value="'+esc(a.creditCheck)+'" placeholder="e.g. 637/1000"></label></div>'+
     '<div class="row" style="gap:8px;align-items:flex-end;margin-block-start:10px"><label class="fld grow" style="margin:0"><span>Outstanding court fines?</span><select id="apFines">'+[['','Not checked'],['No','No'],['Yes','Yes']].map(function(o){ return '<option value="'+o[0]+'"'+(String(a.courtFines||'')===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select></label>'+
     '<button class="btn primary" type="button" data-act="save-credit" data-id="'+esc(ref)+'">Save</button></div>'+
     '<div class="row wrap" style="gap:10px;align-items:center;margin-block-start:12px"><button class="btn sm" type="button" data-act="centrix-copy" data-id="'+esc(ref)+'">\uD83D\uDCCB Copy for Centrix</button>'+
     '<a class="btn sm" target="_blank" rel="noopener" href="'+CENTRIX_URL+'" data-cx-open="'+esc(ref)+'">\uD83D\uDD0E Open Centrix</a>'+
-    '<a class="small" target="_blank" rel="noopener" href="'+CENTRIX_SETUP+'">How to fill Centrix with it</a></div><div class="small muted" id="cxNote" style="margin-block-start:6px"></div></div>');
+    '<a class="small" target="_blank" rel="noopener" href="'+CENTRIX_SETUP+'">How to fill Centrix with it</a></div><div class="small muted" id="cxNote" data-paint data-later style="margin-block-start:6px"></div></div>');
   $('#app').innerHTML=h;
   loadCredit(ref).then(function(c){ var n=$('#cxNote'); if(n) n.innerHTML=centrixNote(c); var p=$('#cxId'); if(p) p.innerHTML=photoIdHtml(c); })
     .catch(function(){ var p=$('#cxId'); if(p) p.innerHTML=''; });
@@ -2767,7 +2772,7 @@ VIEWS.ref = function(arg){
         others.map(function(o){ return '<div class="row small" style="margin-block-start:8px;cursor:pointer" data-act="ref" data-ref="'+esc(o.ref)+'" data-id="'+esc(o.slot)+'"><span class="grow"><a href="#" data-noop="1">'+esc(o.applicant)+'</a> \u00B7 '+esc(o.slot)+(o.contact&&o.contact!==c.contact?' (listed as '+esc(o.contact)+')':'')+'</span><b>'+esc(o.status)+(o.outcome?' \u00B7 '+esc(o.outcome):'')+'</b></div>'; }).join('')+'</div>';
     }
     if(flags.length) h+='<details class="flags"><summary>\u26A0 What to listen for</summary>'+flags.map(function(f){ return (f.note?'<div style="margin-block-start:6px">'+esc(f.note)+'</div>':'')+'<ul>'+f.items.map(function(i){ return '<li>'+esc(i)+'</li>'; }).join('')+'</ul>'; }).join('')+'</details>';
-    h+=sectStart('r-questions','Questions','')+'<div class="card"><div class="filters" style="margin-block-end:4px">'+sets.map(function(s){ return '<button type="button" data-act="qset" data-id="'+esc(s.name)+'" class="'+(F.set===s.name?'on':'')+'">'+esc(s.name)+'</button>'; }).join('')+'</div><div id="qList"></div></div>'+SECT_END;
+    h+=sectStart('r-questions','Questions','')+'<div class="card"><div class="filters" style="margin-block-end:4px">'+sets.map(function(s){ return '<button type="button" data-act="qset" data-id="'+esc(s.name)+'" class="'+(F.set===s.name?'on':'')+'">'+esc(s.name)+'</button>'; }).join('')+'</div><div id="qList" data-paint data-later></div></div>'+SECT_END;
     h+=sectStart('r-result','Result','<span class="pill">'+esc(F.status)+'</span>'+(F.outcome?'<span class="pill">'+esc(F.outcome)+'</span>':''))+'<div class="card"><label class="fld" style="margin-block-end:4px"><span>Call status</span></label><div class="seg c4">'+
       REF_STATUSES.map(function(s){ return '<button type="button" data-seg="status" data-v="'+esc(s)+'" class="'+(F.status===s?'on':'')+'">'+esc(s)+'</button>'; }).join('')+'</div>'+
       '<label class="fld" style="margin-block-end:4px"><span>Outcome</span></label><div class="seg c3">'+

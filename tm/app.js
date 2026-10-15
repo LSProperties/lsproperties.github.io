@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.15.5';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.15.6';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -27,7 +27,62 @@ function refSmsText(c,app,others){
   return 'Hi'+(first?' '+first:'')+', I was given your number by '+nameList(names)+' as a reference for their rental application. '+
     'Can you please let me know a good time to call and ask a couple of questions? Many thanks'+(me?', '+me:'');
 }
-function validEmail(v){ return !v || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v).trim()); }
+/* ---- Email addresses: checked as they're typed, so a form or agreement never goes to an address Gmail will refuse ----
+   cleanEmail: drops spaces at the ends, invisible characters pasted in with it and a "mailto:".
+   emailProblem: '' if fine, else what's wrong ("has two dots in a row"). emailSuggest: a likely fix for a misspelt
+   provider (gmial.com -> gmail.com), offered but never forced. Every email box gets this as it's typed in. */
+function cleanEmail(v){ return String(v==null?'':v).replace(/[\u200B-\u200D\u2060\uFEFF\u00A0]/g,'').replace(/^\s*mailto:/i,'').trim(); }
+function emailProblem(v){
+  v=cleanEmail(v); if(!v) return '';
+  if(/\s/.test(v)) return 'has a space in it';
+  var at=v.split('@'); if(at.length<2) return 'is missing the @'; if(at.length>2) return 'has more than one @';
+  var local=at[0], domain=at[1];
+  if(!local) return 'is missing the part before the @';
+  if(!domain) return 'is missing the part after the @';
+  if(/^\.|\.$/.test(local)||/\.\./.test(local)) return 'has a dot in the wrong place before the @';
+  if(!/^[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+$/.test(local)) return 'has a character email addresses can\u2019t contain';
+  if(!/\./.test(domain)) return 'is missing the ending (e.g. .com or .co.nz)';
+  if(/^\.|\.$/.test(domain)||/\.\./.test(domain)) return 'has a dot in the wrong place after the @';
+  var labels=domain.split('.');
+  if(!labels.every(function(l){ return /^[A-Za-z0-9-]+$/.test(l) && !/^-|-$/.test(l); })) return 'has a character email addresses can\u2019t contain';
+  if(!/^[A-Za-z]{2,}$/.test(labels[labels.length-1])) return 'doesn\u2019t end properly (e.g. .com or .co.nz)';
+  if(v.length>254) return 'is too long';
+  return '';
+}
+function validEmail(v){ return !emailProblem(v); }
+var EMAIL_DOMAINS=['gmail.com','googlemail.com','mail.com','email.com','ymail.com','aol.com','gmx.com','zoho.com','fastmail.com','hey.com','hotmail.com.au','outlook.com.au','live.com.au','bigpond.com','optusnet.com.au','xnet.co.nz','snap.net.nz','ihug.co.nz','kinect.co.nz','hotmail.com','outlook.com','yahoo.com','icloud.com','live.com','me.com','xtra.co.nz','hotmail.co.nz','yahoo.co.nz','outlook.co.nz','live.co.nz','windowslive.com','msn.com','protonmail.com','proton.me','orcon.net.nz','vodafone.co.nz','slingshot.co.nz','actrix.co.nz','clear.net.nz','paradise.net.nz','inspire.net.nz'];
+function emailSuggest(v){
+  v=cleanEmail(v); if(emailProblem(v)&&!/end properly|missing the ending/.test(emailProblem(v))) return '';
+  var at=v.lastIndexOf('@'); if(at<1) return '';
+  var local=v.slice(0,at), domain=v.slice(at+1).toLowerCase();
+  if(EMAIL_DOMAINS.indexOf(domain)>=0) return '';
+  var fixed=domain.replace(/\.con$|\.cmo$|\.ocm$|\.vom$|\.xom$|\.comm$|\.cim$/,'.com').replace(/\.conz$|\.co\.n$|\.co\.nzz$|\.co\.mz$|\.co\.bz$|\.cp\.nz$|\.co\.za$/,'.co.nz');
+  if(fixed==='gmail.co.nz'||fixed==='gmail.co') fixed='gmail.com';
+  if(EMAIL_DOMAINS.indexOf(fixed)>=0 && fixed!==domain) return local+'@'+fixed;
+  // one or two letters off a common provider (gmial.com, hotmial.com, outlok.com)
+  function dist(a,b){ var d=[],i,j; for(i=0;i<=a.length;i++){ d[i]=[i]; } for(j=0;j<=b.length;j++) d[0][j]=j;
+    for(i=1;i<=a.length;i++) for(j=1;j<=b.length;j++){ d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+      if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1]) d[i][j]=Math.min(d[i][j],d[i-2][j-2]+1); }
+    return d[a.length][b.length]; }
+  var best='',bd=3; EMAIL_DOMAINS.forEach(function(c){ var n=dist(fixed,c); if(n<bd && n<=(c.length>9?2:1)){ bd=n; best=c; } });
+  return best? local+'@'+best : '';
+}
+/* the note under an email box: what's wrong (once they've left the box), or a suggested fix (tap to use it) */
+function emailHint(input,final){
+  var v=cleanEmail(input.value), p=emailProblem(v), s=p&&!/end properly|missing the ending/.test(p)? '' : emailSuggest(v), box=input.parentNode;
+  var h=box.querySelector('.emhint'); if(!h){ h=document.createElement('div'); h.className='emhint small'; h.setAttribute('role','status'); h.style.marginBlockStart='4px'; box.appendChild(h); }
+  if(p && final){ h.style.color='var(--bad)'; h.innerHTML='This email address '+esc(p)+'.'+(s?' Did you mean <button type="button" class="linkbtn" data-em-fix="'+esc(s)+'">'+esc(s)+'</button>?':''); input.setAttribute('aria-invalid','true'); return; }
+  input.removeAttribute('aria-invalid');
+  if(s && (final || !p)){ h.style.color=''; h.innerHTML='Did you mean <button type="button" class="linkbtn" data-em-fix="'+esc(s)+'">'+esc(s)+'</button>?'; return; }
+  h.innerHTML='';
+}
+document.addEventListener('input',function(e){ var t=e.target; if(t&&t.type==='email') emailHint(t,false); },true);
+document.addEventListener('focusout',function(e){ var t=e.target; if(!t||t.type!=='email') return;
+  var c=cleanEmail(t.value); if(c!==t.value){ t.value=c; t.dispatchEvent(new Event('input',{bubbles:true})); }
+  emailHint(t,true); },true);
+document.addEventListener('click',function(e){ var b=e.target.closest&&e.target.closest('[data-em-fix]'); if(!b) return;
+  var hb=b.closest('.emhint'), input=hb&&hb.parentNode.querySelector('input[type=email]'); if(!input) return;
+  e.preventDefault(); input.value=b.getAttribute('data-em-fix'); input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); emailHint(input,true); },true);
 function buzz(){ try{ if(navigator.vibrate) navigator.vibrate(12); }catch(e){} }
 
 /* ================= Backend (Apps Script, or an in-browser demo) ================= */

@@ -1,7 +1,7 @@
 /* Rentals app offline start. Pages and their files come from the network when there is signal (so updates show at
    once) and from this cache when there isn't. Calls to the API and Google are never cached. The cache name is stamped
    by build-app.js on every build. */
-var CACHE = 'rentals-2026.10.15-202ecd0';
+var CACHE = 'rentals-2026.10.15-9c25f8d';
 var FILES = ['./', 'index.html', 'shell.css', 'signin.js', 'push.js', 'api.js', 'config.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png',
   'fi/', 'fi/index.html', 'fi/app.js', 'tm/', 'tm/index.html', 'tm/app.js'];
 self.addEventListener('install', function (e) {

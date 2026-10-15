@@ -3,5 +3,5 @@
 window.RENTALS_CONFIG = {
   apiUrl: 'https://script.google.com/macros/s/AKfycbyvzK0YEVRZ_PKjSlQ47npiZ4RLJGLbYUGX1I0CPXYlyeaNJ7X8mK_oSkRCOBDe_L7ttA/exec',
   clientId: '667187796908-3vgtsb7p4qgiie1u4av34du2vhbjphj3.apps.googleusercontent.com',
-  version: '2026.10.15-b5a5111 (inspections 1.18.10, tenancies 3.16.4)'
+  version: '2026.10.15-56dcc35 (inspections 1.18.10, tenancies 3.16.5)'
 };

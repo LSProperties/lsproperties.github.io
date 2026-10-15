@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.16.4';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.16.5';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1876,9 +1876,62 @@ VIEWS.propEdit = function(id){
   h+='<div id="peErr" class="err" style="margin:0 6px 8px"></div><div style="height:84px"></div>';
   $('#app').innerHTML=h; peHint();
   setFooter('<div class="pefoot">'+peMenu(e)+'<div class="row" style="gap:8px"><button class="btn" type="button" data-act="back">Cancel</button><button class="btn primary" type="button" data-act="prop-save">Save property</button></div></div>');
+  markNeeds();   // outline what's still needed
 };
 /* keep the menu badges in step while typing */
-function peMenuRefresh(){ var m=document.querySelector('.petabs'); if(m&&S.pe) m.outerHTML=peMenu(S.pe); }
+/* ---- Property setup: the boxes still needed get an amber border (the same rules as the "to complete" counts on the tabs) ----
+   peNeeds lists them as 'pe:<field>', 'hh:<field>' or 'ins:<area>.<field>'; markNeeds outlines them on screen, and runs again
+   after every edit so a box clears as soon as it's filled. */
+function peNeeds(e){
+  var out=[], h=hhOf(e.healthyHomes), ins=insOf(e.insulation);
+  function add(k){ out.push(k); }
+  if(!tx(e.name)) add('pe:name');
+  if(!tx(e.rentPaymentDetails)) add('pe:rentPaymentDetails');
+  INS_AREAS.forEach(function(a){ var k=a[0], x=ins[k], opt=k==='walls', p='ins:'+k+'.';
+    if(!x.status){ add(p+'status'); return; }
+    if(x.status==='insulated'||x.status==='partial'){
+      if(x.status==='partial'&&!tx(x.partialNotes)) add(p+'partialNotes');
+      if(!tx(x.type)) add(p+'type');
+      if(!opt&&tx(x.rValue)===''&&tx(x.thickness)===''){ add(p+'rValue'); add(p+'thickness'); }
+      if(!x.installed) add(p+'installed');
+      if(x.layers==='2'){ if(!tx(x.type2)) add(p+'type2'); if(tx(x.rValue2)===''&&tx(x.thickness2)===''){ add(p+'rValue2'); add(p+'thickness2'); } if(!x.installed2) add(p+'installed2'); }
+      if(!opt&&!x.lastInspected) add(p+'lastInspected');
+      if(!opt&&!x.condition) add(p+'condition'); else if(x.condition==='no'&&!tx(x.conditionNotes)) add(p+'conditionNotes');
+    } else if((x.status==='none'&&!opt||x.status==='unknown')&&!tx(x.reason)) add(p+'reason'); });
+  if(!h.complianceDate) add('hh:complianceDate');
+  if(!h.heatingComplies) add('hh:heatingComplies');
+  else if(h.heatingComplies==='no'){ if(!tx(h.heatingExemptReason)) add('hh:heatingExemptReason'); }
+  else {
+    if(!(+h.heatingCapacity>0)) add('hh:heatingCapacity');
+    if(!(+h.heatingProvided>0)) add('hh:heatingProvided');
+    if(!tx(h.heater1)) add('hh:heater1');
+    if(!h.toleranceApplies) add('hh:toleranceApplies');
+    else if(h.toleranceApplies==='yes'){ if(!(+h.toleranceKw>0)) add('hh:toleranceKw'); if(!tx(h.toleranceReason)) add('hh:toleranceReason'); }
+    else if(+h.heatingProvided>0&&+h.heatingCapacity>0&&+h.heatingProvided<+h.heatingCapacity){ add('hh:heatingProvided'); add('hh:toleranceApplies'); }
+  }
+  if(!h.ventilation) add('hh:ventilation'); else if(h.ventilation==='partial'&&!tx(h.ventilationNotes)) add('hh:ventilationNotes');
+  if(!h.kitchenFan) add('hh:kitchenFan');
+  if(!h.bathroomFan) add('hh:bathroomFan');
+  if((h.kitchenFan==='none'||h.bathroomFan==='none')&&!tx(h.fanNotes)) add('hh:fanNotes');
+  if(!h.gutters) add('hh:gutters'); else if(h.gutters==='no'&&!tx(h.guttersNotes)) add('hh:guttersNotes');
+  if(!h.enclosedSubfloor) add('hh:enclosedSubfloor');
+  else if(h.enclosedSubfloor==='yes'){ if(!h.groundCover) add('hh:groundCover'); else if(h.groundCover==='no'&&!tx(h.groundCoverReason)) add('hh:groundCoverReason'); }
+  if(!h.draughtFree) add('hh:draughtFree'); else if(h.draughtFree==='no'&&!tx(h.draughtNotes)) add('hh:draughtNotes');
+  if(!h.openFireplace) add('hh:openFireplace');
+  return out;
+}
+function markNeeds(){
+  var app=document.getElementById('app'); if(!app||!S.pe||S.cur.view!=='propEdit') return;
+  [].forEach.call(app.querySelectorAll('.need'),function(el){ el.classList.remove('need'); });
+  peNeeds(S.pe).forEach(function(n){
+    var kind=n.slice(0,n.indexOf(':')), key=n.slice(n.indexOf(':')+1), attr={pe:'data-pe',hh:'data-hh',ins:'data-ins'}[kind];
+    var box=app.querySelector('['+attr+'="'+key+'"]');
+    if(box){ box.classList.add('need'); return; }
+    var seg=app.querySelector('[data-act="'+kind+'-seg"][data-id="'+key+'"]');   // a row of answer buttons: outline the row
+    if(seg&&seg.parentNode) seg.parentNode.classList.add('need');
+  });
+}
+function peMenuRefresh(){ var m=document.querySelector('.petabs'); if(m&&S.pe) m.outerHTML=peMenu(S.pe); markNeeds(); }
 function peAgreementHtml(){
   var e=S.pe, lls=landlords(), c=S.peCheck, h='<div class="small muted">DocHub template</div>';
   var llSel='<label class="fld"'+(esignOn()?' style="margin:0"':'')+'><span>Default landlord (signs last)</span><select data-pe="landlord"><option value="">Choose when sending</option>'+lls.map(function(l){ return '<option value="'+esc(l.name)+'"'+(l.name===e.landlord?' selected':'')+'>'+esc(l.name)+'</option>'; }).join('')+'</select></label>';

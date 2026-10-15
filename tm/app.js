@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.16.9';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.16.10';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1679,8 +1679,9 @@ function termsListHtml(list){
 /* a row of choice buttons; tapping the chosen one again clears it */
 function segHtml(act,id,cur,opts,cls){ return '<div class="seg '+(cls||'c'+opts.length)+'" style="margin-block:4px 10px">'+opts.map(function(o){ return '<button type="button" data-act="'+act+'" data-id="'+id+'" data-v="'+o[0]+'" class="'+(cur===o[0]?'on':'')+'">'+o[1]+'</button>'; }).join('')+'</div>'; }
 function fldLabel(t){ return '<div class="fld" style="margin-block-end:0"><span>'+esc(t)+'</span></div>'; }
-/* when it was installed: the ceiling takes text ("March 2010", "Unknown"); underfloor and walls a month */
-function instBox(key,f,v){ return key==='ceiling'? '<label class="fld"><span>Installed</span><input type="text" data-ins="'+key+'.'+f+'" value="'+esc(v)+'" placeholder="e.g. March 2010, or Unknown"></label>'
+/* when it was installed: the ceiling and underfloor take text ("March 2010", "Unknown"); underfloor and walls a month */
+function instBox(key,f,v){ return key!=='walls'?   // ceiling and underfloor: text (3.16.10)
+  '<label class="fld"><span>Installed</span><input type="text" data-ins="'+key+'.'+f+'" value="'+esc(v)+'" placeholder="e.g. March 2010, or Unknown"></label>'
   : '<label class="fld"><span>Installed (month and year)</span><input type="month" data-ins="'+key+'.'+f+'" value="'+esc(v)+'"></label>'; }
 function insAreaHtml(key,label,x){
   var h='<div class="editor-area"><div style="font-weight:750;margin-block-end:6px">'+esc(label)+'</div>'+

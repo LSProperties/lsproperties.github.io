@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.16.8';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.16.9';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1555,7 +1555,7 @@ function insProblems(v){
       if(!tx(x.type)) out.push('the '+l+' insulation type');
       var opt=a[0]!=='ceiling';   // underfloor and walls: R-value (or thickness) is optional
       if(!opt&&tx(x.rValue)===''&&tx(x.thickness)==='') out.push('the '+l+' insulation R-value (or its thickness if the R-value isn\u2019t known)');
-      if(!x.installed) out.push('when the '+l+' insulation was installed');
+      if(a[0]!=='walls'&&!x.installed) out.push('when the '+l+' insulation was installed');
       if(x.layers==='2'){ if(!tx(x.type2)) out.push('the second '+l+' layer\u2019s insulation type');
         if(tx(x.rValue2)===''&&tx(x.thickness2)==='') out.push('the second '+l+' layer\u2019s R-value (or its thickness if the R-value isn\u2019t known)');
         if(!x.installed2) out.push('when the second '+l+' layer was installed'); }
@@ -1603,7 +1603,7 @@ function insText(v){ var ins=insOf(v); return INS_AREAS.map(function(a){ var x=i
     var rest=[tx(x.lastInspected)?'Last inspected '+inspText(x.lastInspected):'',x.condition==='yes'?'in reasonable condition':x.condition==='no'?'not in reasonable condition'+(tx(x.conditionNotes)?' ('+trimEnd(x.conditionNotes)+')':''):''].filter(Boolean).join(', ');
     return a[1]+': '+(x.status==='partial'?'Partly insulated'+(tx(x.partialNotes)?' ('+trimEnd(x.partialNotes)+')':'')+'. ':'')+'Two layers. Layer 1: '+layer(x.type,x.rValue,x.thickness,x.installed)+'. Layer 2: '+layer(x.type2,x.rValue2,x.thickness2,x.installed2)+'.'+(rest?' '+rest.charAt(0).toUpperCase()+rest.slice(1)+'.':''); }
   if(x.status==='insulated'||x.status==='partial'){
-    var bits=[tx(x.type),tx(x.rValue)!==''?'R'+tx(x.rValue):tx(x.thickness)!==''?tx(x.thickness)+' mm thick (R-value not known)':'',tx(x.installed)?'installed '+instText(x.installed):'',tx(x.lastInspected)?'last inspected '+inspText(x.lastInspected):'',
+    var bits=[tx(x.type),tx(x.rValue)!==''?'R'+tx(x.rValue):tx(x.thickness)!==''?tx(x.thickness)+' mm thick (R-value not known)':'',a[0]!=='walls'&&tx(x.installed)?'installed '+instText(x.installed):'',a[0]!=='walls'&&tx(x.lastInspected)?'last inspected '+inspText(x.lastInspected):'',
       x.condition==='yes'?'in reasonable condition':x.condition==='no'?'not in reasonable condition'+(tx(x.conditionNotes)?' ('+trimEnd(x.conditionNotes)+')':''):''].filter(Boolean);
     return a[1]+': '+(x.status==='partial'?'Partly insulated'+(tx(x.partialNotes)?' ('+trimEnd(x.partialNotes)+')':'')+'. ':'')+bits.join(', ')+'.'; }
   if(x.status==='none') return a[1]+': No insulation.'+(tx(x.reason)?' Reason: '+sentence(x.reason):'');
@@ -1701,7 +1701,7 @@ function insAreaHtml(key,label,x){
         ''+instBox(key,'installed2',x.installed2)+''+
         '<div class="small" style="font-weight:750;margin-block:10px 6px">Whole ceiling</div>'+
         '<label class="fld"><span>Last inspected (optional)</span><input type="text" data-ins="'+key+'.lastInspected" value="'+esc(x.lastInspected)+'" placeholder="e.g. June 2026, or Unknown"></label>'
-      :'<div class="grid2">'+instBox(key,'installed',x.installed)+''+
+      :key==='walls'?'':'<div class="grid2">'+instBox(key,'installed',x.installed)+''+   // walls: no installed or inspected date (3.16.9)
       '<label class="fld"><span>Last inspected (optional)</span><input type="text" data-ins="'+key+'.lastInspected" value="'+esc(x.lastInspected)+'" placeholder="e.g. June 2026, or Unknown"></label></div>')+
       fldLabel('In reasonable condition?'+(key!=='ceiling'?' (optional)':''))+segHtml('ins-seg',key+'.condition',x.condition,[['yes','Yes'],['no','No']]);
     if(x.condition==='no') h+='<label class="fld" style="margin:0"><span>What\u2019s wrong with it (required)</span><input type="text" data-ins="'+key+'.conditionNotes" value="'+esc(x.conditionNotes)+'" placeholder="e.g. Batts displaced near the hatch"></label>';
@@ -1897,7 +1897,7 @@ function peNeeds(e){
       if(x.status==='partial'&&!tx(x.partialNotes)) add(p+'partialNotes');
       if(!tx(x.type)) add(p+'type');
       if(k==='ceiling'&&tx(x.rValue)===''&&tx(x.thickness)===''){ add(p+'rValue'); add(p+'thickness'); }
-      if(!x.installed) add(p+'installed');
+      if(k!=='walls'&&!x.installed) add(p+'installed');
       if(x.layers==='2'){ if(!tx(x.type2)) add(p+'type2'); if(tx(x.rValue2)===''&&tx(x.thickness2)===''){ add(p+'rValue2'); add(p+'thickness2'); } if(!x.installed2) add(p+'installed2'); }
       if(k==='ceiling'&&!x.condition) add(p+'condition'); else if(x.condition==='no'&&!tx(x.conditionNotes)) add(p+'conditionNotes');
     } else if((x.status==='none'&&!opt||x.status==='unknown')&&!tx(x.reason)) add(p+'reason'); });

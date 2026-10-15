@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.16.6';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.16.7';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1553,7 +1553,7 @@ function insProblems(v){
     else if(x.status==='insulated'||x.status==='partial'){
       if(x.status==='partial'&&!tx(x.partialNotes)) out.push('why the '+l+' is only partly insulated');
       if(!tx(x.type)) out.push('the '+l+' insulation type');
-      var opt=a[0]==='walls';   // walls: R-value, last inspected and condition are optional
+      var opt=a[0]!=='ceiling';   // underfloor and walls: R-value (or thickness) is optional
       if(!opt&&tx(x.rValue)===''&&tx(x.thickness)==='') out.push('the '+l+' insulation R-value (or its thickness if the R-value isn\u2019t known)');
       if(!x.installed) out.push('when the '+l+' insulation was installed');
       if(x.layers==='2'){ if(!tx(x.type2)) out.push('the second '+l+' layer\u2019s insulation type');
@@ -1687,8 +1687,8 @@ function insAreaHtml(key,label,x){
     if(key==='ceiling') h+=fldLabel('Layers of insulation')+segHtml('ins-seg',key+'.layers',two?'2':'1',[['1','One layer'],['2','Two layers']]);
     h+=(two?'<div class="small" style="font-weight:750;margin-block:4px 6px">Layer 1</div>':'')+
       '<label class="fld"><span>Insulation type</span><input type="text" list="insTypes" data-ins="'+key+'.type" value="'+esc(x.type)+'" placeholder="e.g. Glass wool batts"></label>'+
-      '<div class="grid2"><label class="fld"><span>R-value'+(key==='walls'?' (optional)':'')+'</span><input type="number" inputmode="decimal" step="0.1" min="0" data-ins="'+key+'.rValue" value="'+esc(x.rValue)+'" placeholder="e.g. 3.2"></label>'+
-      '<label class="fld"><span>Thickness (mm, if R-value not known)</span><input type="number" inputmode="numeric" min="0" data-ins="'+key+'.thickness" value="'+esc(x.thickness)+'" placeholder="e.g. 140"></label></div>'+
+      '<div class="grid2"><label class="fld"><span>R-value'+(key!=='ceiling'?' (optional)':'')+'</span><input type="number" inputmode="decimal" step="0.1" min="0" data-ins="'+key+'.rValue" value="'+esc(x.rValue)+'" placeholder="e.g. 3.2"></label>'+
+      '<label class="fld"><span>Thickness (mm, if R-value not known)'+(key!=='ceiling'?' (optional)':'')+'</span><input type="number" inputmode="numeric" min="0" data-ins="'+key+'.thickness" value="'+esc(x.thickness)+'" placeholder="e.g. 140"></label></div>'+
       (two?'<label class="fld"><span>Installed (month and year)</span><input type="month" data-ins="'+key+'.installed" value="'+esc(x.installed)+'"></label>'+
         '<div class="small" style="font-weight:750;margin-block:10px 6px">Layer 2</div>'+
         '<label class="fld"><span>Insulation type</span><input type="text" list="insTypes" data-ins="'+key+'.type2" value="'+esc(x.type2)+'" placeholder="e.g. Polyester batts (top-up)"></label>'+
@@ -1892,7 +1892,7 @@ function peNeeds(e){
     if(x.status==='insulated'||x.status==='partial'){
       if(x.status==='partial'&&!tx(x.partialNotes)) add(p+'partialNotes');
       if(!tx(x.type)) add(p+'type');
-      if(!opt&&tx(x.rValue)===''&&tx(x.thickness)===''){ add(p+'rValue'); add(p+'thickness'); }
+      if(k==='ceiling'&&tx(x.rValue)===''&&tx(x.thickness)===''){ add(p+'rValue'); add(p+'thickness'); }
       if(!x.installed) add(p+'installed');
       if(x.layers==='2'){ if(!tx(x.type2)) add(p+'type2'); if(tx(x.rValue2)===''&&tx(x.thickness2)===''){ add(p+'rValue2'); add(p+'thickness2'); } if(!x.installed2) add(p+'installed2'); }
       if(k==='ceiling'&&!x.condition) add(p+'condition'); else if(x.condition==='no'&&!tx(x.conditionNotes)) add(p+'conditionNotes');

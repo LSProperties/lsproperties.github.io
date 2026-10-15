@@ -20,10 +20,17 @@
   // the app's service worker (registered by api.js); null if it isn't there, so nothing waits for ever
   function reg() { return navigator.serviceWorker.getRegistration('../').then(function (r) { return r || navigator.serviceWorker.getRegistration(); }); }
   function sub() { return reg().then(function (r) { return r ? r.pushManager.getSubscription() : null; }); }
+  // this person's settings, kept on this device so the panel opens straight away (the server is only waited for when
+  // there's no copy yet: first use, or the phone's storage cleared)
+  // One copy per person (by email), so people sharing a phone each see their own. The phone has only one push
+  // subscription, so each copy also remembers which subscription is theirs (endpoint): on for them only if it's still here.
+  function cacheKey() { var s = window.RentalsSession && window.RentalsSession.get(), e = String((s && s.email) || '').trim().toLowerCase(); return e ? 'rentals-push:' + e : ''; }
+  function readCache() { var k = cacheKey(); if (!k) return null; try { var c = JSON.parse(localStorage.getItem(k) || 'null'); return c && c.prefs && c.publicKey ? c : null; } catch (e) { return null; } }
+  function writeCache(i) { var k = cacheKey(); if (!k) return; try { localStorage.setItem(k, JSON.stringify({ publicKey: i.publicKey, prefs: i.prefs, thisDevice: !!i.thisDevice, endpoint: i.thisDevice ? i.endpoint || '' : '' })); } catch (e) {} }
 
   function mount(el) {
-    var info = null;
-    el.innerHTML = '<div class="card"><div class="small muted">Loading…</div></div>';
+    var info = readCache();
+    if (!info) el.innerHTML = '<div class="card"><div class="small muted">Loading…</div></div>';
     function msg(t, bad) { var m = el.querySelector('[data-rp-msg]'); if (m) { m.textContent = t || ''; m.style.color = bad ? 'var(--bad, #b42318)' : ''; } }
     function draw(note, bad) {
       var on = info.thisDevice, blocked = can && Notification.permission === 'denied';
@@ -67,11 +74,11 @@
             if (old && !same(old.options && old.options.applicationServerKey, want)) return old.unsubscribe().then(function () { return null; });
             return old;
           }).then(function (old) { return old || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: want }); });
-        }).then(function (s) { return call('auth', 'pushSubscribe', [], { sub: s.toJSON() }); }))
-          .then(function (r) { info = r; info.thisDevice = true; draw('Notifications are on.'); }, function (x) { msg(x.message, true); });
+        }).then(function (s) { ep = s.endpoint; return call('auth', 'pushSubscribe', [], { sub: s.toJSON() }); }))
+          .then(function (r) { info = r; info.thisDevice = true; info.endpoint = ep; writeCache(info); draw('Notifications are on.'); }, function (x) { msg(x.message, true); });
       } else if (act === 'off') {
         busy(b, sub().then(function (s) { var ep = s ? s.endpoint : ''; return (s ? s.unsubscribe() : Promise.resolve()).then(function () { return call('auth', 'pushUnsubscribe', [], { endpoint: ep }); }); }))
-          .then(function (r) { info = r; info.thisDevice = false; draw('Notifications are off for this device.'); }, function (x) { msg(x.message, true); });
+          .then(function (r) { info = r; info.thisDevice = false; info.endpoint = ''; writeCache(info); draw('Notifications are off for this device.'); }, function (x) { msg(x.message, true); });
       } else if (act === 'test') {
         msg('Sending…');
         busy(b, call('auth', 'pushTest')).then(function (r) { msg(r.sent ? 'Sent. It should appear in a few seconds.' : 'It didn’t go through. Turn notifications off and on again.', !r.sent); }, function (x) { msg(x.message, true); });
@@ -79,11 +86,23 @@
     });
     el.addEventListener('change', function (e) {
       var k = e.target.getAttribute && e.target.getAttribute('data-rp'); if (!k) return;
-      var v = e.target.checked, p = {}; p[k] = v; info.prefs[k] = v;
-      call('auth', 'pushPrefs', [], { prefs: p }).then(function () { msg('Saved.'); }, function (x) { e.target.checked = !v; info.prefs[k] = !v; msg(x.message, true); });
+      var v = e.target.checked, p = {}; p[k] = v; info.prefs[k] = v; writeCache(info);
+      call('auth', 'pushPrefs', [], { prefs: p }).then(function () { msg('Saved.'); }, function (x) { e.target.checked = !v; info.prefs[k] = !v; writeCache(info); msg(x.message, true); });
     });
-    (can ? sub() : Promise.resolve(null)).then(function (s) { return call('auth', 'pushInfo', [], { endpoint: s ? s.endpoint : '' }); })
-      .then(function (r) { info = r; draw(); }, function (x) { el.innerHTML = '<div class="card"><div class="small" style="color:var(--bad, #b42318)">' + esc(x.message) + '</div></div>'; });
+    var local = can ? sub() : Promise.resolve(null);
+    if (info) {
+      draw();   // straight from this device
+      // on only if this person's own subscription is still on this device (no network needed)
+      local.then(function (s) { var on = !!(s && info.endpoint && s.endpoint === info.endpoint); if (on !== !!info.thisDevice) { info.thisDevice = on; writeCache(info); draw(); } }, function () {});
+    }
+    // then quietly bring it up to date (changes made on another of your devices); only drawn again if something differs
+    var ep = '';
+    local.then(function (s) { ep = s ? s.endpoint : ''; return call('auth', 'pushInfo', [], { endpoint: ep }); })
+      .then(function (r) {
+        var was = info ? JSON.stringify([info.prefs, !!info.thisDevice, info.publicKey]) : '';
+        info = r; info.endpoint = ep; writeCache(info);
+        if (JSON.stringify([info.prefs, !!info.thisDevice, info.publicKey]) !== was) draw();
+      }, function (x) { if (!info) el.innerHTML = '<div class="card"><div class="small" style="color:var(--bad, #b42318)">' + esc(x.message) + '</div></div>'; });
   }
   window.RentalsPush = { mount: mount };
 })();

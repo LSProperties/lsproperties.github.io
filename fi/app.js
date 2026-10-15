@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.18.7';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.18.8';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -320,7 +320,55 @@ function home(){ S.stack=[]; S.cur={view:'home'}; render(); window.scrollTo(0,0)
 function setFooter(html){ var f=$('#footer'); if(html){ $('#footerIn').innerHTML=html; f.classList.remove('hidden'); } else f.classList.add('hidden'); }
 function setTitle(t){ $('#title').textContent=t; $('#backBtn').classList.toggle('hidden', S.cur.view==='home'); }
 
+/* ================= Redrawing without flicker =================
+   When the same screen is drawn again (fresh data from the server, a save, a tick), only what changed is updated in
+   place: cards don't replay their entrance animation, pictures don't reload, open sections stay open, the box being
+   typed in is left alone and the page doesn't jump. Going to a different screen draws it fresh, with its animation.
+   Views keep writing $('#app').innerHTML as before; the main area and the footer route that through paintInto(). */
+var Paint={key:'',same:false};
+function paintKey(){ return S.cur.view+'|'+JSON.stringify(S.cur.arg===undefined?null:S.cur.arg)+'|'+(S.tab||''); }
+function paintKeyOf(n){ return n.nodeType===1? n.tagName+'#'+(n.id||'')+'@'+(n.getAttribute('data-id')||'')+'@'+(n.getAttribute('data-key')||'') : '#'+n.nodeType; }
+function paintChildren(from,to){
+  var kids=[].slice.call(to.childNodes), i=0;
+  kids.forEach(function(n){
+    var o=from.childNodes[i], k=paintKeyOf(n);
+    if(o && paintKeyOf(o)===k){ paintNode(o,n); i++; return; }
+    // the same thing further on (an item removed above it): move it up rather than draw it again
+    if(n.nodeType===1 && (n.id||n.getAttribute('data-id')||n.getAttribute('data-key'))){
+      for(var j=i+1;j<from.childNodes.length;j++){ var c=from.childNodes[j]; if(paintKeyOf(c)===k){ from.insertBefore(c,o); paintNode(c,n); i++; return; } }
+    }
+    from.insertBefore(n,o||null); i++;   // new: it comes in with its animation
+  });
+  while(from.childNodes.length>i) from.removeChild(from.lastChild);
+}
+function paintNode(o,n){
+  if(o.nodeType!==1){ if(o.nodeValue!==n.nodeValue) o.nodeValue=n.nodeValue; return; }
+  var tag=o.tagName, active=o===document.activeElement, keepOpen=tag==='DETAILS';
+  [].slice.call(o.attributes).forEach(function(a){ if(!n.hasAttribute(a.name) && !(keepOpen && a.name==='open')) o.removeAttribute(a.name); });
+  [].slice.call(n.attributes).forEach(function(a){ if(keepOpen && a.name==='open') return; if(o.getAttribute(a.name)!==a.value) o.setAttribute(a.name,a.value); });
+  if(tag==='TEXTAREA'){ if(!active && o.value!==n.value) o.value=n.value; return; }
+  if(tag==='INPUT' && !active){
+    if(o.type==='checkbox'||o.type==='radio') o.checked=n.hasAttribute('checked');
+    else if(o.type!=='file'){ var v=n.getAttribute('value')||''; if(o.value!==v) o.value=v; }
+  }
+  paintChildren(o,n);
+  if(tag==='SELECT' && !active && o.selectedIndex!==n.selectedIndex) o.selectedIndex=n.selectedIndex;
+}
+function paintInto(el,html){
+  if(el._painted===html) return;   // nothing changed: leave the screen exactly as it is
+  var t=document.createElement('template'); t.innerHTML=html;
+  paintChildren(el,t.content); el._painted=html;
+}
+(function(){
+  var d=Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML');
+  ['app','footerIn'].forEach(function(id){
+    var el=document.getElementById(id); if(!el) return;
+    Object.defineProperty(el,'innerHTML',{configurable:true,get:function(){ return d.get.call(this); },
+      set:function(h){ h=String(h); if(Paint.same) paintInto(this,h); else { d.set.call(this,h); this._painted=h; } }});
+  });
+})();
 function render(){
+  var pk=paintKey(); Paint.same=pk===Paint.key; Paint.key=pk;   // the same screen again: update in place
   var v=S.cur.view, fn=VIEWS[v]; setFooter(null);
   Promise.resolve(fn(S.cur.arg)).catch(function(e){ $('#app').innerHTML='<div class="card">Something went wrong: '+esc(e.message)+'</div>'; });
 }

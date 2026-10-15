@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.15.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.15.2';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -3196,17 +3196,19 @@ function sendForms(refs,btn,formType){
   if(!HAS_GAS && !Demo.on) return Promise.resolve();
   return busy(btn,'Sending',api.tmSendApplications(refs,{formType:formType||'Full'})).then(function(r){
     apply(r.state);
-    var ok=r.results.filter(function(x){ return x.ok; }).length, bad=r.results.filter(function(x){ return !x.ok; });
-    toast(bad.length? (ok?ok+' sent. ':'')+bad.length+' failed: '+bad[0].error : (ok===1?'Application form sent':ok+' application forms sent'),bad.length?6000:2800);
+    var ok=r.results.filter(function(x){ return x.ok && !x.emailError; }).length, bad=r.results.filter(function(x){ return !x.ok; }), noMail=r.results.filter(function(x){ return x.ok && x.emailError; });
+    if(!noMail.length || bad.length || ok) toast(bad.length? (ok?ok+' sent. ':'')+bad.length+' failed: '+bad[0].error : (ok===1?'Application form sent':ok+' application forms sent'),bad.length?6000:2800);
     render();
-    var textThese=r.results.filter(function(x){ return x.ok; }).map(function(x){ return appByRef(x.ref); }).filter(function(a){ return a && !a.email && a.applyLink && mobileOk(a); });
-    if(textThese.length) textLinksDialog(textThese);
+    // no email address, or the email didn't go (the link is kept): text it
+    var textThese=r.results.filter(function(x){ return x.ok; }).map(function(x){ var a=appByRef(x.ref); return a && (!a.email || x.emailError) && a.applyLink && mobileOk(a) ? a : null; }).filter(Boolean);
+    if(textThese.length) textLinksDialog(textThese, noMail.length? noMail[0].emailError : '');
   });
 }
 /* People without an email get their link by text - one tap each opens Messages with the wording filled in */
-function textLinksDialog(list){
+function textLinksDialog(list,emailError){
   var m=modal('<div class="title" style="font-size:1.1rem;margin-block-end:6px">Text the form link</div>'+
-    '<div class="small muted" style="margin-block-end:12px">'+(list.length>1?'These people don\u2019t':esc(list[0].name.split(' ')[0])+' doesn\u2019t')+' have an email address, so send their link by text. Each button opens Messages with the message ready to send.</div>'+
+    (emailError?'<div class="small" style="margin-block-end:8px;color:var(--bad)">The email didn\u2019t go: '+esc(emailError)+'</div>':'')+
+    '<div class="small muted" style="margin-block-end:12px">'+(emailError?'The link is ready, so send it by text instead.':(list.length>1?'These people don\u2019t':esc(list[0].name.split(' ')[0])+' doesn\u2019t')+' have an email address, so send their link by text.')+' Each button opens Messages with the message ready to send.</div>'+
     list.map(function(a){ return '<a class="btn primary block" style="margin-block-end:8px" target="_blank" rel="noopener" data-done="1" href="'+esc(smsLinkFor(a))+'">\uD83D\uDCAC Text '+esc(whoText(a))+' ('+esc(a.mobile)+')</a>'; }).join('')+
     '<div class="row" style="justify-content:flex-end;margin-block-start:4px"><button class="btn" data-r="0" type="button">Done</button></div>');
   m.addEventListener('click',function(e){

@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.19.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.19.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -558,25 +558,24 @@ function groupSummaryCard(g){
 }
 
 /* ---------- Viewings tab ---------- */
+var PAST_SHOWN=20;   // past viewings shown before "Show all" (TM 3.19.1)
 function viewingsHome(){
   setTitle('Viewings');
   var st=S.st||{viewings:[],applications:[]};
   var upcoming=st.viewings.filter(function(v){ return v.status==='Scheduled'; }).sort(function(a,b){ return a.viewingAt.localeCompare(b.viewingAt); });
-  var recent=st.viewings.filter(function(v){ return v.status!=='Scheduled'; }).slice(0,6);
-  var waiting=apps().filter(function(a){ return sent(a) && (a.status==='Sent'||a.status==='In Progress'); });
-  var booked=0; upcoming.forEach(function(v){ booked+=groupsAt(v.id).length; });
+  // TM 3.19.1: no dashboard panel; past viewings (newest first) replace "Recent" and "Waiting for the form back"
+  var past=st.viewings.filter(function(v){ return v.status!=='Scheduled'; }).sort(function(a,b){ return b.viewingAt.localeCompare(a.viewingAt); });
   var errs=apps().filter(function(a){ return a.status==='Error' || (a.lastError && a.viewingId); });
-  var h='<div class="card hero"><div class="small" style="position:relative;z-index:1">'+greeting()+' \uD83D\uDC4B</div>'+
-    '<div class="big" style="position:relative;z-index:1">'+(upcoming.length&&upcoming[0].viewingAt.slice(0,10)===localInput(new Date()).slice(0,10)?'Viewing today':'Find your next tenant')+'</div>'+
-    '<div class="stats"><div class="stat"><b>'+upcoming.length+'</b><span>Upcoming</span></div><div class="stat"><b>'+booked+'</b><span>Groups booked</span></div><div class="stat"><b>'+waiting.length+'</b><span>Forms out</span></div></div></div>';
+  var h='';
   if(errs.length){ h+='<h2>Needs fixing</h2>'; errs.forEach(function(a){ h+=personCard(a,'<div class="err">'+esc(a.lastError||'The form could not be sent.')+'</div>'); }); }
-  h+='<div class="row" style="margin:24px 6px 10px"><h2 class="grow" style="margin:0">Upcoming</h2><button class="btn sm primary" type="button" data-act="new-viewing">\uFF0B New viewing</button></div>';
+  h+='<div class="row" style="margin:'+(errs.length?'24px':'8px')+' 6px 10px"><h2 class="grow" style="margin:0">Upcoming</h2><button class="btn sm primary" type="button" data-act="new-viewing">\uFF0B New viewing</button></div>';
   if(!upcoming.length) h+='<div class="card empty small">No viewings coming up. Create one, then book each group into an arrival time.</div>';
   upcoming.forEach(function(v){ h+=viewingCard(v); });
-  if(recent.length){ h+=sectStart('v-recent','Recent',countPill(recent.length,'viewing')); recent.forEach(function(v){ h+=viewingCard(v); }); h+=SECT_END; }
-  if(waiting.length){
-    h+=sectStart('v-waiting','Waiting for the form back',countPill(waiting.length,'person','people'));
-    waiting.forEach(function(a){ h+=personCard(a,'<div class="small muted" style="margin-block-start:6px">Sent '+esc(fmt(a.sentAt))+(a.viewedAt?' \u00B7 opened '+esc(fmt(a.viewedAt)):isOpened(a)?' \u00B7 opened':'')+'</div>'); });
+  if(past.length){
+    var shown=S.pastAll?past:past.slice(0,PAST_SHOWN);
+    h+=sectStart('v-past','Past viewings',countPill(past.length,'viewing'));
+    shown.forEach(function(v){ h+=viewingCard(v); });
+    if(shown.length<past.length) h+='<button class="btn sm" type="button" data-act="past-all" style="margin:4px 6px 12px">Show all '+past.length+' past viewings</button>';
     h+=SECT_END;
   }
   $('#app').innerHTML=h+versionLine();
@@ -3527,6 +3526,7 @@ document.addEventListener('click',function(e){
   if(act==='back') return back();
   if(act==='tab'){ S.tab=id; try{ localStorage.setItem('tm-tab',id); }catch(x){} S.stack=[]; S.cur={view:'home'}; render(); window.scrollTo(0,0); return; }
   if(act==='new-viewing') return go('viewingForm',null);
+  if(act==='past-all'){ S.pastAll=true; return keepScroll(render); }
   if(act==='group') return go('group',id);
   if(act==='gfilter'){ S.gfilter=id; return render(); }
   if(act==='new-group'){ S.people=null; return go('newGroup'); }

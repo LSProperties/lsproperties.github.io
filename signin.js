@@ -4,7 +4,7 @@
   var CFG = window.RENTALS_CONFIG, S = window.RentalsSession, call = window.rentalsCall;
   var next = (location.search.match(/[?&]next=(fi|tm)\b/) || [])[1] || '';
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function show(id) { ['loading', 'signin', 'home', 'setup'].forEach(function (x) { $(x).hidden = x !== id; }); }
+  function show(id) { ['loading', 'signin', 'home', 'setup'].forEach(function (x) { $(x).hidden = x !== id; }); $('hdrHome').hidden = id !== 'setup'; }   // the header icon: back to the home screen from Setup
   function msg(t, bad) { $('signMsg').textContent = t || ''; $('signMsg').className = 'msg' + (bad ? ' bad' : ''); }
   $('ver').textContent = 'Version ' + CFG.version;
 

@@ -21,6 +21,10 @@
     }
     window.scrollTo(0, 0);
   }
+  function head(ic, cls, title, note) {
+    return '<div class="card-h"><div class="ic-tile ' + cls + '" aria-hidden="true">' + ic + '</div><div class="grow"><div class="title">' + esc(title) + '</div>' + (note ? '<div class="small">' + esc(note) + '</div>' : '') + '</div></div>';
+  }
+  function initials(n, e) { var w = String(n || '').trim().split(/\s+/).filter(String); return (w.length ? (w[0][0] + (w.length > 1 ? w[w.length - 1][0] : '')) : String(e || '?')[0]).toUpperCase(); }
   function isAdmin() { var s = S.get(); return !!(s && s.role === 'admin'); }
   function level(a) { return S.level(a); }
 
@@ -34,12 +38,12 @@
   function settingsLinks() {
     var links = [];
     if (level('tm') !== 'none') {
-      links.push(['tm/#setup=props', 'Properties', 'Letting details, agreement set-up and inspection areas and checks']);
-      links.push(['tm/#setup=landlords', 'Landlords', 'Who signs tenancy agreements and their contact details']);
-      links.push(['tm/#setup=questions', 'Screening questions', 'What you ask each referee, and the red flags']);
-      links.push(['tm/#setup=terms', 'Additional terms', 'The master list of extra terms for agreements']);
+      links.push(['tm/#setup=props', 'Properties', 'Letting details, agreement set-up and inspection areas and checks', '\uD83C\uDFE0', 't2']);
+      links.push(['tm/#setup=landlords', 'Landlords', 'Who signs tenancy agreements and their contact details', '\uD83D\uDC64', 't5']);
+      links.push(['tm/#setup=questions', 'Screening questions', 'What you ask each referee, and the red flags', '\uD83D\uDCDD', 't1']);
+      links.push(['tm/#setup=terms', 'Additional terms', 'The master list of extra terms for agreements', '\uD83D\uDCDC', 't4']);
     }
-    if (level('mt') === 'edit') links.push(['mt/#manage', 'Maintenance jobs', 'How often each job is done, the reminders, and which jobs are on']);
+    if (level('mt') === 'edit') links.push(['mt/#manage', 'Maintenance jobs', 'How often each job is done, the reminders, and which jobs are on', '\uD83D\uDD27', 't3']);
     return links;
   }
   function tabBarHtml(list) {
@@ -55,7 +59,7 @@
     if (!bar) { bar = document.createElement('nav'); bar.id = 'suTabs'; bar.className = 'sutabs'; bar.setAttribute('aria-label', 'Setup sections'); $('setup').appendChild(bar); }
     bar.innerHTML = tabBarHtml(list);
     $('devBox').hidden = D.tab !== 'me';
-    var h = D.tab === 'alerts' ? '<div class="card"><div class="title">Notifications</div><div id="suPush" style="margin-top:8px"></div></div>'
+    var h = D.tab === 'alerts' ? '<div id="suPush"></div>'
       : D.tab === 'settings' ? settingsHtml() : D.tab === 'admin' ? adminHtml() : meHtml();
     $('setupBody').innerHTML = h;
     var box = $('suPush');
@@ -63,18 +67,19 @@
   }
   function settingsHtml() {
     var links = settingsLinks();
-    return '<div class="card"><div class="title">Settings</div>' + links.map(function (l) {
-      return '<a class="link" href="' + l[0] + '"><span><b>' + esc(l[1]) + '</b><span class="small">' + esc(l[2]) + '</span></span><span aria-hidden="true">›</span></a>';
-    }).join('') + (level('tm') === 'view' ? '<div class="small">You can look at these, but not change them.</div>' : '') + '</div>';
+    return (level('tm') === 'view' ? '<div class="small" style="margin:0 4px 10px">You can look at the Tenancies settings, but not change them.</div>' : '') + links.map(function (l) {
+      return '<a class="link" href="' + l[0] + '"><span class="ic-tile ' + l[4] + '" aria-hidden="true">' + l[3] + '</span><span class="txt"><b>' + esc(l[1]) + '</b><span class="small">' + esc(l[2]) + '</span></span></a>';
+    }).join('');
   }
 
   function meHtml() {
     var h = '', p = D.profile;
-    h += '<div class="card"><div class="title">My details</div><div class="small" style="margin:2px 0 10px">Your name shows as the inspector on inspections, and signs off the emails you send.</div>';
+    h += '<div class="card"><div class="card-h"><div class="avatar big" aria-hidden="true">' + esc(initials(p && p.name, p && p.email)) + '</div><div class="grow"><div class="title">My details</div>' +
+      '<div class="small">Your name shows as the inspector on inspections, and signs off the emails you send.</div></div></div>';
     if (!p) h += '<div class="small">Loading…</div>';
     else if (p.error) h += '<div class="err">' + esc(p.error) + '</div>';
     else h += '<label class="fld"><span>Name</span><input id="pfName" autocomplete="name" value="' + esc(p.name) + '"></label>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end"><label class="fld"><span>Mobile</span><input id="pfMobile" type="tel" autocomplete="tel" value="' + esc(p.mobile) + '"></label>' +
+      '<div class="pair"><label class="fld"><span>Mobile</span><input id="pfMobile" type="tel" autocomplete="tel" value="' + esc(p.mobile) + '"></label>' +
       '<label class="fld"><span>Other phone</span><input id="pfPhone" type="tel" value="' + esc(p.phone) + '"></label></div>' +
       '<button class="btn primary" type="button" data-su="profile">Save</button> <span class="small" id="pfMsg"></span>';
     h += '</div>';
@@ -84,30 +89,33 @@
   function adminHtml() {
     var u = D.users, h = '';
     // the admin PIN
-    h += '<div class="card"><div class="title">Admin PIN</div><div class="small" style="margin:2px 0 10px">One PIN for both apps: deleting groups with forms, agreements or tenancies, editing or deleting submitted inspections, and changing users and access.</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end">' +
+    h += '<div class="card">' + head('\uD83D\uDD12', 't1', 'Admin PIN', 'One PIN for both apps: deleting groups with forms, agreements or tenancies, editing or deleting submitted inspections, and changing users and access.') +
+      '<div class="pair">' +
       (D.pin ? '<label class="fld"><span>Current PIN</span><input id="pinCur" type="password" inputmode="numeric" autocomplete="off"></label>' : '') +
       '<label class="fld"><span>' + (D.pin ? 'New PIN' : 'PIN (4 to 8 digits)') + '</span><input id="pinNew" type="password" inputmode="numeric" autocomplete="off"></label></div>' +
       '<button class="btn primary" type="button" data-su="pin">' + (D.pin ? 'Change PIN' : 'Set PIN') + '</button> <span class="small" id="pinMsg">' + (D.pin === null ? '' : D.pin ? 'Set' : '<b class="err">Not set</b>') + '</span></div>';
     // users and access
-    h += '<div class="card"><div style="display:flex;align-items:center;gap:8px"><div class="title" style="flex:1">Users and access</div><button class="btn" type="button" data-su="add">＋ Add</button></div>' +
-      '<div class="small" style="margin:2px 0 8px">Who can sign in, and Edit / View / None for each area. Changes need the admin PIN, are logged and emailed to the owner, and take effect within 5 minutes.</div>';
+    h += '<div class="card"><div class="card-h"><div class="ic-tile t5" aria-hidden="true">\uD83D\uDC65</div><div class="grow"><div class="title">Users and access</div>' +
+      '<div class="small">Who can sign in, and Edit / View / None for each area. Changes need the admin PIN, are logged and emailed to the owner, and apply within 5 minutes.</div></div>' +
+      '<button class="btn" type="button" data-su="add" style="align-self:flex-start">\uFF0B Add</button></div>';
     if (!u) h += '<div class="small">Loading…</div>';
     else if (u.error) h += '<div class="err">' + esc(u.error) + '</div>';
     else {
       if (D.editing) h += userForm(D.editing);
       h += u.users.map(function (x) {
-        var lv = function (k, n) { return '<span class="pill">' + n + ': ' + ({ edit: 'Edit', view: 'View', none: 'None' })[x.access[k]] + '</span>'; };
-        return '<div class="urow" data-user="' + esc(x.email) + '"><span><b>' + esc(x.name || x.email) + '</b>' + (x.owner ? ' <span class="pill">Owner</span>' : '') + (x.me ? ' <span class="pill">You</span>' : '') +
+        var lv = function (k, n) { var v = x.access[k]; return '<span class="pill ' + v + '">' + n + ' \u00B7 ' + ({ edit: 'Edit', view: 'View', none: 'None' })[v] + '</span>'; };
+        return '<div class="urow" data-user="' + esc(x.email) + '"><div class="avatar" aria-hidden="true"' + (x.active ? '' : ' style="filter:grayscale(1);opacity:.6"') + '>' + esc(initials(x.name, x.email)) + '</div><div class="txt"><b>' + esc(x.name || x.email) + '</b>' +
+          (x.owner ? ' <span class="pill tag">Owner</span>' : '') + (x.me ? ' <span class="pill tag">You</span>' : '') + (x.active ? '' : ' <span class="pill bad">Can\u2019t sign in</span>') +
+          '<div class="small">' + esc(x.email) + ' \u00B7 ' + esc(x.role.charAt(0).toUpperCase() + x.role.slice(1)) + '</div>' + lv('tm', 'Tenancies') + lv('fi', 'Inspections') + lv('mt', 'Maintenance') + '</div></div>';
           (x.active ? '' : ' <span class="pill" style="color:var(--bad)">Not active</span>') + '<br><span class="small">' + esc(x.email) + ' · ' + esc(x.role) + '</span><br>' +
           lv('tm', 'Tenancies') + lv('fi', 'Inspections') + lv('mt', 'Maintenance') + '</span><span aria-hidden="true">›</span></div>';
       }).join('');
     }
     h += '</div>';
     // tools
-    if (level('tm') === 'edit') h += '<div class="card"><div class="title">Tools</div>' +
-      '<a class="link" href="tm/#setup=test"><span><b>Test suite</b><span class="small">Run the whole tenancy process with made-up tenants</span></span><span aria-hidden="true">›</span></a>' +
-      '<a class="link" href="tm/#setup=speed"><span><b>Speed check</b><span class="small">How long loading and saving take on this device</span></span><span aria-hidden="true">›</span></a></div>';
+    if (level('tm') === 'edit') h += '<div class="small" style="margin:4px 4px 10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">Tools</div>' +
+      '<a class="link" href="tm/#setup=test"><span class="ic-tile t2" aria-hidden="true">\uD83E\uDDEA</span><span class="txt"><b>Test suite</b><span class="small">Run the whole tenancy process with made-up tenants</span></span></a>' +
+      '<a class="link" href="tm/#setup=speed"><span class="ic-tile t5" aria-hidden="true">\u23F1</span><span class="txt"><b>Speed check</b><span class="small">How long loading and saving take on this device</span></span></a>';
     return h;
   }
   function userForm(e) {
@@ -165,6 +173,8 @@
     try { localStorage.setItem(TAB_KEY, D.tab); } catch (x) {}
     draw(); window.scrollTo(0, 0);
   });
+  // the app icon in the header does the same as Back (as in the apps)
+  $('hdrHome').addEventListener('click', function (e) { e.preventDefault(); $('setupBack').click(); });
   $('setupBack').onclick = function () { try { history.replaceState(null, '', location.pathname + location.search); } catch (x) {} window.RentalsHome.home(); window.scrollTo(0, 0); };
   window.RentalsSetup = { open: open };
   if (location.hash === '#setup' && S.get()) open();

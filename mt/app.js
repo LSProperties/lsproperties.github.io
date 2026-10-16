@@ -1,6 +1,6 @@
 (function(){
 'use strict';
-var APP_VERSION = '1.1.0';   // Maintenance page (1.1.0: jobs can be turned off; Manage jobs opens from Setup on the home screen)
+var APP_VERSION = '1.2.0';   // Maintenance page (1.1.0: jobs can be turned off; Manage jobs opens from Setup on the home screen)
 var $=function(s,r){ return (r||document).querySelector(s); };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -18,14 +18,27 @@ function canEdit(){ return DEMO || !window.RentalsSession || window.RentalsSessi
 
 var S={ d:null, view:'list', key:null, filter:'all', other:false, err:'' };
 
+/* 1.2.0: opens straight away from the copy kept on this phone (one per person), then quietly checks with the server.
+   The screen is only redrawn from the server's answer on the list, so nothing being typed is lost. */
+var CACHE_KEY='mt-cache:'+String(((window.RentalsSession&&window.RentalsSession.get())||{}).email||(DEMO?'demo':'')).toLowerCase();
+function readCache(){ try{ var c=JSON.parse(localStorage.getItem(CACHE_KEY)||'null'); return c&&c.tasks?c:null; }catch(e){ return null; } }
+function keep(d){ try{ localStorage.setItem(CACHE_KEY,JSON.stringify(d)); }catch(e){} return d; }
+function syncHtml(){
+  if(S.refreshing) return '<div class="sync"><span class="spin"></span>Checking for changes\u2026</div>';
+  if(S.offline) return '<div class="sync">\u26A0\uFE0F Couldn\u2019t check for changes. Showing what was saved on this phone.</div>';
+  return '';
+}
 function load(){
-  return api('mtBootstrap').then(function(d){ S.d=d; S.err=''; render(); },function(e){ S.err=e&&e.message||'Couldn’t load'; render(); });
+  S.refreshing=true;
+  return api('mtBootstrap').then(function(d){ S.refreshing=false; S.offline=false; S.d=keep(d); S.err=''; if(S.view==='list') render(); },
+    function(e){ S.refreshing=false; if(S.d){ S.offline=true; if(S.view==='list') render(); } else { S.err=e&&e.message||'Couldn\u2019t load'; render(); } });
 }
 function nameOf(email){ var n=(S.d&&S.d.names||{})[String(email||'').toLowerCase()]; return n||String(email||'').split('@')[0]||''; }
 function typeOf(id){ return (S.d.types||[]).filter(function(t){ return t.id===id; })[0]||{}; }
 function taskOf(key){ return (S.d.tasks||[]).filter(function(k){ return k.typeId+'|'+k.propertyId===key; })[0]; }
 
 /* ---------- what each job's state says ---------- */
+var ICON={MM:'\uD83D\uDCA7',INS:'\uD83C\uDFE0'};   // each kind of job's picture (anything else: a spanner)
 var DOT={overdue:'🔴',due:'🟠',soon:'🟠',ok:'🟢',none:'⚪'};
 function statusText(k){
   if(k.status==='overdue') return 'Overdue — was due '+dayName(k.due);
@@ -55,16 +68,21 @@ function listHtml(){
   var h='';
   if((d.types||[]).length>1) h+='<div class="chips">'+[['all','All jobs']].concat(d.types.filter(function(t){ return t.active; }).map(function(t){ return [t.id,t.name]; }))
     .map(function(c){ return '<button type="button" data-filter="'+esc(c[0])+'" class="'+(S.filter===c[0]?'on':'')+'">'+esc(c[1])+'</button>'; }).join('')+'</div>';
+  var need=tasks.filter(function(k){ return /^(overdue|due|soon)$/.test(k.status); }), over=need.filter(function(k){ return k.status==='overdue'; }).length;
+  var next=tasks.filter(function(k){ return k.status==='ok'; })[0];
+  h+=syncHtml()+'<div class="card hero"><div class="ic" aria-hidden="true">'+(need.length?'\uD83D\uDD14':'\u2705')+'</div><div><div class="big">'+
+    (need.length? need.length+' job'+(need.length===1?' needs':'s need')+' doing' : 'Everything\u2019s up to date')+'</div><div class="sub">'+
+    (need.length? (over? over+' overdue':'Due soon') : next? 'Next: '+esc(next.typeName.toLowerCase())+' at '+esc(next.property.split(',')[0])+', '+esc(dayName(next.due)) : 'Nothing due')+'</div></div></div>';
   var groups=[['Needs doing',function(k){ return /^(overdue|due|soon)$/.test(k.status); }],['No date recorded yet',function(k){ return k.status==='none'; }],['Up to date',function(k){ return k.status==='ok'; }]];
   groups.forEach(function(g){
     var list=tasks.filter(g[1]); if(!list.length) return;
     h+='<div class="sec">'+esc(g[0])+' ('+list.length+')</div>'+list.map(function(k){
-      return '<button type="button" class="card job '+k.status+'" data-task="'+esc(k.typeId+'|'+k.propertyId)+'"><span class="dot" aria-hidden="true">'+DOT[k.status]+'</span>'+
-        '<span><b>'+esc(k.property)+'</b><span class="muted">'+esc(k.typeName)+'</span><br><span class="st">'+esc(statusText(k))+'</span></span></button>';
+      return '<button type="button" class="card job '+k.status+'" data-task="'+esc(k.typeId+'|'+k.propertyId)+'"><span class="tile" aria-hidden="true">'+(ICON[k.typeId]||'\uD83D\uDD27')+'</span>'+
+        '<span class="txt"><b>'+esc(k.property)+'</b><span class="muted">'+esc(k.typeName)+'</span><br><span class="st">'+esc(statusText(k))+'</span></span><span class="chev" aria-hidden="true">\u203A</span></button>';
     }).join('');
   });
   if(!tasks.length) h+='<div class="card muted">Nothing to show. Jobs appear here for active properties: tick <b>Has a Moisture Master unit</b> on a property in Tenancies › Setup › Properties.</div>';
-  h+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-block-start:18px"><button class="btn" type="button" data-act="reminders">🔔 Reminders</button>'+
+  h+='<div class="actions"><button class="btn" type="button" data-act="reminders">🔔 Reminders</button>'+
     (canEdit()?'<button class="btn" type="button" data-act="manage">⚙️ Manage jobs</button>':'')+'</div>'+
     (canEdit()?'':'<p class="small muted">You can look at everything here, but not record or change anything.</p>');
   return h;
@@ -119,14 +137,14 @@ function busy(b,p){ if(b){ b.disabled=true; b.dataset.label=b.textContent; b.tex
 function markDone(b,ymd){
   var k=taskOf(S.key), note=($('#note')||{}).value||'';
   busy(b,api('mtMarkDone',[k.typeId,k.propertyId,ymd||'',note])).then(function(d){
-    S.d=d; S.other=false;
+    S.d=keep(d); S.other=false;
     var mine=(d.log||[]).filter(function(e){ return e.typeId===k.typeId&&e.propertyId===k.propertyId; }).sort(function(a,b){ return b.row-a.row; })[0];
     var n=taskOf(S.key); render(); toast('Recorded'+(n&&n.due?'. Next due '+dayName(n.due):'')+'.',mine?mine.row:'');
   },function(e){ var x=$('#taskErr'); if(x) x.textContent=e&&e.message||'Couldn’t save'; });
 }
 function removeEntry(row,b){
   var k=taskOf(S.key); if(!k) return;
-  return busy(b,api('mtDeleteEntry',[Number(row),k.typeId,k.propertyId])).then(function(d){ S.d=d; render(); toast('Removed.'); },function(e){ toast(e&&e.message||'Couldn’t remove it'); });
+  return busy(b,api('mtDeleteEntry',[Number(row),k.typeId,k.propertyId])).then(function(d){ S.d=keep(d); render(); toast('Removed.'); },function(e){ toast(e&&e.message||'Couldn’t remove it'); });
 }
 document.addEventListener('click',function(e){
   var t=e.target.closest('button'); if(!t) return;
@@ -137,7 +155,7 @@ document.addEventListener('click',function(e){
   if(t.dataset.del){ if(confirm('Remove this entry from the history?')) removeEntry(t.dataset.del,t); return; }
   if(t.dataset.saveType){
     var c=t.closest('[data-type]'), v=function(k){ return $('[data-k="'+k+'"]',c).value; }, er=$('[data-type-err]',c);
-    busy(t,api('mtSaveType',[t.dataset.saveType,{every:Number(v('every')),remind:Number(v('remind')),howTo:v('howTo'),active:$('[data-k="active"]',c).checked}])).then(function(d){ S.d=d; render(); toast('Saved.'); },function(x){ er.textContent=x&&x.message||'Couldn’t save'; });
+    busy(t,api('mtSaveType',[t.dataset.saveType,{every:Number(v('every')),remind:Number(v('remind')),howTo:v('howTo'),active:$('[data-k="active"]',c).checked}])).then(function(d){ S.d=keep(d); render(); toast('Saved.'); },function(x){ er.textContent=x&&x.message||'Couldn’t save'; });
     return;
   }
   var a=t.dataset.act;
@@ -189,5 +207,7 @@ var Demo={
 };
 if(DEMO) $('#demoBanner').classList.remove('hidden');
 if(location.hash==='#manage'&&canEdit()){ S.view='manage'; S.fromSetup=true; try{ history.replaceState(null,'',location.pathname+location.search); }catch(x){} }   // from Setup on the home screen
+S.d=readCache();   // the saved copy first (if there is one), then the server
+if(S.d) render();
 load();
 })();

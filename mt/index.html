@@ -33,7 +33,7 @@ main{max-width:640px;margin:0 auto;padding:14px 14px calc(30px + env(safe-area-i
 .small{font-size:.88rem}.muted{color:var(--muted)}
 .hidden{display:none!important}
 .sec{font-size:.85rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 6px 8px}
-.job{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:start;font:inherit;color:inherit;cursor:pointer;border-inline-start:8px solid var(--line)}
+.job{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:start;font:inherit;color:inherit;cursor:pointer}
 .job .dot{font-size:1.5rem;line-height:1.2;flex:none}
 .job b{display:block;font-size:1.08rem}
 .st{display:inline-block;margin-block-start:6px;padding:4px 10px;border-radius:99px;font-weight:800;font-size:.92rem}
@@ -75,6 +75,30 @@ textarea{min-height:80px}
 .spin{display:inline-block;width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:s 1s linear infinite;vertical-align:middle}
 @keyframes s{to{transform:rotate(360deg)}}
 .demo{background:#f59e0b;color:#111;text-align:center;font-weight:700;padding:8px;font-size:.9rem}
+/* 1.2.0: the apps' look (gradient header, soft background, cards with shadows, icon tiles), still large and simple */
+:root{--grad:linear-gradient(135deg,#0d9488 0%,#0891b2 45%,#4f46e5 100%);--shadow:0 1px 2px rgba(15,60,80,.06),0 8px 24px -8px rgba(15,60,80,.18);--shadow-lg:0 20px 50px -12px rgba(8,145,178,.45);--glow:0 10px 26px -8px rgba(13,148,136,.55)}
+@media (prefers-color-scheme:dark){:root{--shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -10px rgba(0,0,0,.7)}}
+html,body{font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{min-height:100vh;background:radial-gradient(900px 500px at 110% -10%,rgba(34,211,238,.16),transparent 60%),radial-gradient(700px 500px at -20% 20%,rgba(79,70,229,.12),transparent 60%),var(--bg);background-attachment:fixed}
+.bar{background:var(--grad);background-size:200% 200%;animation:shift 12s ease infinite;border-radius:0 0 26px 26px;box-shadow:var(--shadow-lg)}
+@keyframes shift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.card{border-radius:22px;box-shadow:var(--shadow);animation:rise .35s cubic-bezier(.2,.8,.2,1) both}
+.btn{border-radius:16px}.btn.primary{background:var(--grad);border:0;box-shadow:var(--glow)}
+.hero{background:var(--grad);color:#fff;border:0;display:flex;gap:14px;align-items:center;padding:18px;box-shadow:var(--shadow-lg)}
+.hero .big{font-size:1.35rem;font-weight:850;letter-spacing:-.02em;line-height:1.2}.hero .sub{opacity:.9;font-size:.95rem}
+.hero .ic{flex:none;width:56px;height:56px;border-radius:18px;display:grid;place-items:center;font-size:1.8rem;background:rgba(255,255,255,.22)}
+.job{display:flex;gap:14px;align-items:center;border:1px solid var(--line);padding:14px 14px 14px 12px}
+.job .tile{flex:none;width:56px;height:56px;border-radius:18px;display:grid;place-items:center;font-size:1.7rem;color:#fff;box-shadow:var(--glow)}
+.job.overdue .tile{background:linear-gradient(135deg,#f43f5e,#e11d48)}.job.due .tile,.job.soon .tile{background:linear-gradient(135deg,#f59e0b,#f97316)}
+.job.ok .tile{background:linear-gradient(135deg,#10b981,#06b6d4)}.job.none .tile{background:linear-gradient(135deg,#94a3b8,#64748b)}
+.job .txt{flex:1;min-width:0}.job .txt b{font-size:1.1rem}
+.job .chev{flex:none;font-size:1.8rem;color:var(--muted);line-height:1}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-block-start:18px}
+.actions .btn{min-height:64px;background:var(--surface);box-shadow:var(--shadow)}
+.sync{font-size:.85rem;color:var(--muted);margin:2px 6px 10px;display:flex;gap:8px;align-items:center}
+.sync .spin{width:14px;height:14px;border-width:2px}
 </style>
 <style>/* Rentals app: header under the see-through status bar; its content starts 20px lower, below the band iOS softens under the status bar */ .bar{padding-block-start:max(14px,calc(env(safe-area-inset-top) + 20px))}</style>
 </head>
@@ -87,9 +111,9 @@ textarea{min-height:80px}
 <main id="app"><div class="card"><span class="spin"></span> Loading&#x2026;</div></main>
 <div id="toast" class="toast hidden" role="status"></div>
 
-<script src="../config.js?v=2026.10.17-88b636f"></script>
-<script src="../api.js?v=2026.10.17-88b636f"></script>
-<script src="../push.js?v=2026.10.17-88b636f"></script>
-<script src="app.js?v=2026.10.17-88b636f"></script>
+<script src="../config.js?v=2026.10.17-5102c1a"></script>
+<script src="../api.js?v=2026.10.17-5102c1a"></script>
+<script src="../push.js?v=2026.10.17-5102c1a"></script>
+<script src="app.js?v=2026.10.17-5102c1a"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.17.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.17.2';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -2257,7 +2257,9 @@ function tpShown(f,ans){
 function tpField(f,v){
   v=v==null?'':String(v);
   var lab='<span>'+esc(f.l)+(f.group?' <span class="muted">('+esc(f.group)+')</span>':'')+'</span>', at=' data-tpa="'+esc(f.k)+'"';
-  if(f.t==='upload') return '<div class="fld">'+lab+'<div class="small" style="padding-block:4px 8px">'+(v?esc(v):'<span class="muted">None</span>')+'</div></div>';
+  if(f.t==='upload'){   // TM 3.17.2: the files themselves, opening in the app's viewer (else just the names)
+    var fg=((S.tp&&S.tp.data&&S.tp.data.files)||[]).filter(function(g){ return g.k===f.k; })[0];
+    return '<div class="fld">'+lab+'<div class="small" style="padding-block:4px 8px">'+(fg?suppliedFilesHtml([{label:'',files:fg.files}]).replace(/^<div class="small muted"[^>]*><\/div>/,''):v?esc(v):'<span class="muted">None</span>')+'</div></div>'; }
   if(f.t==='yesno'||f.t==='choice'){ var opts=f.t==='yesno'?['Yes','No']:(f.o||[]).slice(); if(v&&opts.indexOf(v)<0) opts.push(v);
     return '<label class="fld">'+lab+'<select'+at+'><option value=""></option>'+opts.map(function(o){ return '<option'+(o===v?' selected':'')+'>'+esc(o)+'</option>'; }).join('')+'</select></label>'; }
   if(f.t==='textarea'||v.length>80) return '<label class="fld">'+lab+'<textarea rows="2"'+at+'>'+esc(v)+'</textarea></label>';
@@ -2759,6 +2761,9 @@ VIEWS.app = function(ref){
       (a.pdfUrl?'<a class="btn sm ghost" target="_blank" rel="noopener" href="'+esc(a.pdfUrl)+'">\uD83D\uDCC4 Signed application</a>':'')+
       (a.viewingId?'<button class="btn sm" type="button" data-act="detach-app" data-id="'+esc(ref)+'">Remove from viewing</button>':'')+
       '</div></div>';
+  // TM 3.17.2: the files they uploaded with the form, each opening in the app's viewer (loaded with the credit details)
+  if(a.status==='Finalized') h+='<div class="card"><div class="title" style="font-size:1rem">\uD83D\uDCCE Supplied files</div>'+
+    '<div id="filesBox" data-paint data-later style="margin-block-start:6px">'+(S.credit&&S.credit[ref]?suppliedFilesHtml(S.credit[ref].files):'<div class="row"><span class="spin"></span><span class="small muted">Loading their files\u2026</span></div>')+'</div></div>';
 
   var g=groupOf(groupKey(a));
   h+='<div class="card tap" data-act="group" data-id="'+esc(groupKey(a))+'" style="padding-block:12px"><div class="row"><div class="grow"><div class="small muted">Applying with</div><div style="font-weight:750">'+
@@ -2780,8 +2785,8 @@ VIEWS.app = function(ref){
     '<a class="btn sm" target="_blank" rel="noopener" href="'+CENTRIX_URL+'" data-cx-open="'+esc(ref)+'">\uD83D\uDD0E Open Centrix</a>'+
     '<a class="small" target="_blank" rel="noopener" href="'+CENTRIX_SETUP+'">How to fill Centrix with it</a></div><div class="small muted" id="cxNote" data-paint data-later style="margin-block-start:6px"></div></div>');
   $('#app').innerHTML=h;
-  loadCredit(ref).then(function(c){ var n=$('#cxNote'); if(n) n.innerHTML=centrixNote(c); var p=$('#cxId'); if(p) p.innerHTML=photoIdHtml(c); })
-    .catch(function(){ var p=$('#cxId'); if(p) p.innerHTML=''; });
+  loadCredit(ref).then(function(c){ var n=$('#cxNote'); if(n) n.innerHTML=centrixNote(c); var p=$('#cxId'); if(p) p.innerHTML=photoIdHtml(c); var fb=$('#filesBox'); if(fb) fb.innerHTML=suppliedFilesHtml(c.files); })
+    .catch(function(e){ var p=$('#cxId'); if(p) p.innerHTML=''; var fb=$('#filesBox'); if(fb) fb.innerHTML='<div class="err">'+esc(e&&e.message||'Couldn\u2019t load their files')+'</div>'; });
   loadRefs(ref).then(function(r){ var box=$('#refBox'); if(box) box.innerHTML=refListHtml(r); var tb=$('#ttBox'); if(tb) tb.innerHTML=tribunalHtml(a,r); })
     .catch(function(e){ var box=$('#refBox'); if(box) box.innerHTML='<div class="err">'+esc(e.message)+'</div>'; var tb=$('#ttBox'); if(tb) tb.innerHTML='<div class="err">'+esc(e.message)+'</div>'; });
 };
@@ -2837,6 +2842,17 @@ function centrixData(c){
     dobDay:dob.length===3?dob[2]:'',dobMonth:dob.length===3?dob[1]:'',dobYear:dob.length===3?dob[0]:'',
     licenceNumber:c.licenceNumber||'',licenceVersion:c.licenceVersion||'',email:c.email||'',a1:a1,a2:a2,
     options:CENTRIX_OPTIONS};
+}
+/* Every file supplied with the online form, under the question it answered: [{k, label, files: [{name, url}]}].
+   They're Drive file links, so a tap opens them in the app's viewer (see DRIVE_FILE below), for everyone using the app. */
+function suppliedFilesHtml(groups){
+  groups=groups||[];
+  if(!groups.length) return '<div class="small muted">No files were uploaded with this application.</div>';
+  return groups.map(function(g){
+    return '<div class="small muted" style="margin-block:8px 4px">'+esc(g.label)+'</div><div class="row wrap" style="gap:8px">'+
+      g.files.map(function(f){ return '<a class="btn sm ghost" target="_blank" rel="noopener" href="'+esc(f.url)+'" title="'+esc(f.name)+'" style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+
+        (/\.pdf$/i.test(f.name)?'\uD83D\uDCC4 ':'\uD83D\uDDBC\uFE0F ')+esc(f.name)+'</a>'; }).join('')+'</div>';
+  }).join('');
 }
 /* Quick links to the photo ID uploaded on the online form (else the uploads folder) */
 function photoIdHtml(c){
@@ -3983,11 +3999,15 @@ var Demo = {
       tenancies:ts.map(function(t){ return {id:t.id,property:t.property,status:t.status}; }),bondPayments:(d.bondPayments||[]).filter(function(p){ return ids.indexOf(p.tenancyId)>=0; }).length,
       needsPin:sub>0||ag.status==='Signed'||ts.length>0,pinSet:!!d.pin};
   },
+  files:function(){ var u=function(n){ return 'https://drive.google.com/file/d/DEMO'+n+'XXXXXXXXXXXXXXXXXXXX/view'; };
+    return [{k:'UploadPhotoId',label:'Photo of your driver licence or passport',files:[{name:'licence.jpg',url:u(1)}]},
+      {k:'UploadReferences',label:'Written tenancy references or rent ledger (optional)',files:[{name:'Rent ledger 2025.pdf',url:u(2)},{name:'Reference - Smith Property.pdf',url:u(3)}]},
+      {k:'UploadIncome',label:'Proof of income: your last 3 payslips or a current bank statement',files:[{name:'Payslip Sept.pdf',url:u(4)}]}]; },
   profile:function(d,tid,idx){
     var t=(d.tenancies||[]).find(function(x){ return x.id===tid; }), p=t&&t.tenants[idx]; if(!p) return {};
     var app=p.ref&&d.applications.find(function(x){ return x.ref===p.ref; });
     var out={tenancyId:tid,index:idx,personId:p.personId||'',tenant:clone(p),app:app?{ref:app.ref,name:app.name}:null,answers:null,sections:[],meta:null};
-    if(app){ out.meta={submittedAt:app.signedAt||new Date().toISOString(),signedName:app.name,signedPdf:'#',uploadsFolder:'#',formType:'Full'};
+    if(app){ out.meta={submittedAt:app.signedAt||new Date().toISOString(),signedName:app.name,signedPdf:'#',uploadsFolder:'#',formType:'Full'}; out.files=Demo.files();
       out.answers=Object.assign({ApplicantName:app.name,ApplicantEmail:app.email,ApplicantMobile:app.mobile,CurrentAddress:'14 Kowhai Lane, Roslyn',DateOfBirth:p.dob||'',LicenceNumber:'DX000001',
         Pets:'No',Smoker:'No',Employed:'Yes',EmployerName:'Example Ltd',Occupation:'Analyst',GrossIncome:'1400',EmergencyName:'Sam Example',EmergencyRelationship:'Parent',EmergencyPhone:'021 555 0100',UploadPhotoId:'licence.jpg'},(d.answers2||{})[app.ref]||{});
       out.sections=[{title:'About you',fields:[{k:'ApplicantName',l:'Full legal name',t:'text'},{k:'ApplicantEmail',l:'Email',t:'email'},{k:'ApplicantMobile',l:'Mobile',t:'tel'},{k:'CurrentAddress',l:'Your current address',t:'text'}]},
@@ -4184,7 +4204,7 @@ var Demo = {
       case 'tmPhotoIdFile': return done({name:'licence.svg',mime:'image/svg+xml',data:btoa('<svg xmlns="http://www.w3.org/2000/svg" width="540" height="340"><rect width="540" height="340" rx="24" fill="#e8f4ee"/><text x="40" y="80" font-size="34" font-family="sans-serif">DEMO DRIVER LICENCE</text><rect x="40" y="120" width="140" height="170" fill="#bbb"/></svg>')});
       case 'tmCreditDetails': var ca=d.applications.find(function(x){return x.ref===a[0];})||{};
         return done({ref:a[0],name:ca.name||'',dob:'1998-04-07',email:ca.email||'',licenceNumber:'AB123456',licenceVersion:'123',
-          address:'12 Smith Street, Mornington, Dunedin 9011',howLong:'2 years 3 months',prevAddress:'Flat 2, 45 Queen Street, North Dunedin, Dunedin 9016',prevHowLong:'18 months',photoId:[{name:'licence.jpg',url:'https://example.com/licence.jpg'}],uploadsFolder:''});
+          address:'12 Smith Street, Mornington, Dunedin 9011',howLong:'2 years 3 months',prevAddress:'Flat 2, 45 Queen Street, North Dunedin, Dunedin 9016',prevHowLong:'18 months',photoId:[{name:'licence.jpg',url:'https://example.com/licence.jpg'}],uploadsFolder:'',files:Demo.files()});
       case 'tmSaveReferenceCheck': var c=(d.contacts[a[0]]||[]).find(function(x){return x.slot===a[1];}), pl=a[2];
         Object.assign(c,{status:pl.status,outcome:pl.outcome,notes:pl.notes,checkedBy:pl.checkedBy,checkedAt:new Date().toISOString()});
         (pl.alsoFor||[]).forEach(function(t){ var oc=(d.contacts[t.ref]||[]).find(function(x){return x.slot===t.slot;}); if(oc) Object.assign(oc,{status:pl.status,outcome:pl.outcome,notes:pl.notes,checkedBy:pl.checkedBy,checkedAt:new Date().toISOString()}); });

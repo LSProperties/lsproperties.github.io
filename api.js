@@ -107,6 +107,14 @@
       logo.style.cssText = 'display:block;width:36px;height:36px';
       home.appendChild(logo);
       if (title && title.parentNode === bar) bar.insertBefore(home, title); else bar.insertBefore(home, bar.firstChild);
+      var me = Session.get();
+      if (me && me.role === 'viewer') {   // view-only people see it on every page (the server refuses any change they try)
+        var vo = document.createElement('span');
+        vo.textContent = 'View only'; vo.title = 'You can look at everything, but not change anything';
+        vo.style.cssText = 'flex:none;align-self:center;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.22);color:#fff;' +
+          'font:700 12px/1.3 system-ui,-apple-system,sans-serif;white-space:nowrap;margin-inline-start:6px';
+        home.parentNode.insertBefore(vo, home.nextSibling);
+      }
     }
   }
 

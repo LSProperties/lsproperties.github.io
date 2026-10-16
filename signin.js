@@ -15,7 +15,7 @@
   }
   function home() {
     var s = S.get();
-    $('who').textContent = s ? (s.name ? s.name + ' · ' : '') + s.email : '';
+    $('who').textContent = s ? (s.name ? s.name + ' · ' : '') + s.email + (s.role === 'viewer' ? ' · View only' : '') : '';
     show('home');
   }
 

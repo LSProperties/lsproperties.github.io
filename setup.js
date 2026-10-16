@@ -7,34 +7,31 @@
   var $ = function (id) { return document.getElementById(id); };
   var S = window.RentalsSession, call = window.rentalsCall;
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  var D = { profile: null, users: null, pin: null, editing: null };
+  var D = { profile: null, users: null, pin: null, editing: null, tab: '' };
+  var TAB_KEY = 'rentals-setup-tab';
 
   function open() {
     window.RentalsHome.show('setup');
+    if (!D.tab) { try { D.tab = localStorage.getItem(TAB_KEY) || 'me'; } catch (e) { D.tab = 'me'; } }
     draw();
-    call('auth', 'profile').then(function (p) { D.profile = p; draw(); }, function (e) { D.profile = { error: e.message }; draw(); });
+    // a load only redraws its own tab, so nothing being typed on another tab is lost
+    call('auth', 'profile').then(function (p) { D.profile = p; if (D.tab === 'me') draw(); }, function (e) { D.profile = { error: e.message }; if (D.tab === 'me') draw(); });
     if (isAdmin()) {
-      call('auth', 'users').then(function (r) { D.users = r; D.pin = r.pinSet; draw(); }, function (e) { D.users = { error: e.message }; draw(); });
+      call('auth', 'users').then(function (r) { D.users = r; D.pin = r.pinSet; if (D.tab === 'admin') draw(); }, function (e) { D.users = { error: e.message }; if (D.tab === 'admin') draw(); });
     }
     window.scrollTo(0, 0);
   }
   function isAdmin() { var s = S.get(); return !!(s && s.role === 'admin'); }
   function level(a) { return S.level(a); }
 
-  function draw() {
-    var h = '', p = D.profile;
-    // My details
-    h += '<div class="card"><div class="title">My details</div><div class="small" style="margin:2px 0 10px">Your name shows as the inspector on inspections, and signs off the emails you send.</div>';
-    if (!p) h += '<div class="small">Loading…</div>';
-    else if (p.error) h += '<div class="err">' + esc(p.error) + '</div>';
-    else h += '<label class="fld"><span>Name</span><input id="pfName" autocomplete="name" value="' + esc(p.name) + '"></label>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end"><label class="fld"><span>Mobile</span><input id="pfMobile" type="tel" autocomplete="tel" value="' + esc(p.mobile) + '"></label>' +
-      '<label class="fld"><span>Other phone</span><input id="pfPhone" type="tel" value="' + esc(p.phone) + '"></label></div>' +
-      '<button class="btn primary" type="button" data-su="profile">Save</button> <span class="small" id="pfMsg"></span>';
-    h += '</div>';
-    // Notifications (this device)
-    h += '<div class="card"><div class="title">Notifications</div><div id="suPush" style="margin-top:8px"></div></div>';
-    // Settings for each area (opened in that app)
+  /* The bottom menu: Me (details, devices), Alerts (notifications), Settings (each area's settings), Admin (admins) */
+  function tabs() {
+    var t = [['me', '🙋', 'Me'], ['alerts', '🔔', 'Alerts']];
+    if (settingsLinks().length) t.push(['settings', '⚙️', 'Settings']);
+    if (isAdmin()) t.push(['admin', '🔒', 'Admin']);
+    return t;
+  }
+  function settingsLinks() {
     var links = [];
     if (level('tm') !== 'none') {
       links.push(['tm/#setup=props', 'Properties', 'Letting details, agreement set-up and inspection areas and checks']);
@@ -43,14 +40,45 @@
       links.push(['tm/#setup=terms', 'Additional terms', 'The master list of extra terms for agreements']);
     }
     if (level('mt') === 'edit') links.push(['mt/#manage', 'Maintenance jobs', 'How often each job is done, the reminders, and which jobs are on']);
-    if (links.length) h += '<div class="card"><div class="title">Settings</div>' + links.map(function (l) {
-      return '<a class="link" href="' + l[0] + '"><span><b>' + esc(l[1]) + '</b><span class="small">' + esc(l[2]) + '</span></span><span aria-hidden="true">›</span></a>';
-    }).join('') + (level('tm') === 'view' ? '<div class="small">You can look at these, but not change them.</div>' : '') + '</div>';
-    // Admin
-    if (isAdmin()) h += adminHtml();
+    return links;
+  }
+  function tabBarHtml(list) {
+    return list.map(function (t) {
+      return '<button type="button" data-sutab="' + t[0] + '" class="' + (D.tab === t[0] ? 'on' : '') + '"' + (D.tab === t[0] ? ' aria-current="page"' : '') + '><span class="ic" aria-hidden="true">' + t[1] + '</span>' + t[2] + '</button>';
+    }).join('');
+  }
+
+  function draw() {
+    var list = tabs();
+    if (!list.some(function (t) { return t[0] === D.tab; })) D.tab = 'me';
+    var bar = $('suTabs');
+    if (!bar) { bar = document.createElement('nav'); bar.id = 'suTabs'; bar.className = 'sutabs'; bar.setAttribute('aria-label', 'Setup sections'); $('setup').appendChild(bar); }
+    bar.innerHTML = tabBarHtml(list);
+    $('devBox').hidden = D.tab !== 'me';
+    var h = D.tab === 'alerts' ? '<div class="card"><div class="title">Notifications</div><div id="suPush" style="margin-top:8px"></div></div>'
+      : D.tab === 'settings' ? settingsHtml() : D.tab === 'admin' ? adminHtml() : meHtml();
     $('setupBody').innerHTML = h;
     var box = $('suPush');
     if (box && window.RentalsPush) window.RentalsPush.mount(box); else if (box) box.innerHTML = '<div class="small">Notifications need the app opened from its Home Screen icon.</div>';
+  }
+  function settingsHtml() {
+    var links = settingsLinks();
+    return '<div class="card"><div class="title">Settings</div>' + links.map(function (l) {
+      return '<a class="link" href="' + l[0] + '"><span><b>' + esc(l[1]) + '</b><span class="small">' + esc(l[2]) + '</span></span><span aria-hidden="true">›</span></a>';
+    }).join('') + (level('tm') === 'view' ? '<div class="small">You can look at these, but not change them.</div>' : '') + '</div>';
+  }
+
+  function meHtml() {
+    var h = '', p = D.profile;
+    h += '<div class="card"><div class="title">My details</div><div class="small" style="margin:2px 0 10px">Your name shows as the inspector on inspections, and signs off the emails you send.</div>';
+    if (!p) h += '<div class="small">Loading…</div>';
+    else if (p.error) h += '<div class="err">' + esc(p.error) + '</div>';
+    else h += '<label class="fld"><span>Name</span><input id="pfName" autocomplete="name" value="' + esc(p.name) + '"></label>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end"><label class="fld"><span>Mobile</span><input id="pfMobile" type="tel" autocomplete="tel" value="' + esc(p.mobile) + '"></label>' +
+      '<label class="fld"><span>Other phone</span><input id="pfPhone" type="tel" value="' + esc(p.phone) + '"></label></div>' +
+      '<button class="btn primary" type="button" data-su="profile">Save</button> <span class="small" id="pfMsg"></span>';
+    h += '</div>';
+    return h;
   }
 
   function adminHtml() {
@@ -130,6 +158,12 @@
       busy(b, call('auth', 'saveUser', [], { pin: v('pin'), user: u, isNew: isNew })).then(function (r) { D.users = r; D.editing = null; draw(); },
         function (x) { $('ufMsg').textContent = x.message; });
     }
+  });
+  $('setup').addEventListener('click', function (e) {
+    var t = e.target.closest('[data-sutab]'); if (!t) return;
+    D.tab = t.getAttribute('data-sutab'); D.editing = null;
+    try { localStorage.setItem(TAB_KEY, D.tab); } catch (x) {}
+    draw(); window.scrollTo(0, 0);
   });
   $('setupBack').onclick = function () { try { history.replaceState(null, '', location.pathname + location.search); } catch (x) {} window.RentalsHome.home(); window.scrollTo(0, 0); };
   window.RentalsSetup = { open: open };

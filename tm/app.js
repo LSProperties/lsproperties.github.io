@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.17.2';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.17.3';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -2762,8 +2762,9 @@ VIEWS.app = function(ref){
       (a.viewingId?'<button class="btn sm" type="button" data-act="detach-app" data-id="'+esc(ref)+'">Remove from viewing</button>':'')+
       '</div></div>';
   // TM 3.17.2: the files they uploaded with the form, each opening in the app's viewer (loaded with the credit details)
-  if(a.status==='Finalized') h+='<div class="card"><div class="title" style="font-size:1rem">\uD83D\uDCCE Supplied files</div>'+
-    '<div id="filesBox" data-paint data-later style="margin-block-start:6px">'+(S.credit&&S.credit[ref]?suppliedFilesHtml(S.credit[ref].files):'<div class="row"><span class="spin"></span><span class="small muted">Loading their files\u2026</span></div>')+'</div></div>';
+  // 3.17.3: a section, closed until you open it (then it stays open while you move around, like the others)
+  if(a.status==='Finalized') h+=sectionHtml('files','\uD83D\uDCCE Supplied files',S.credit&&S.credit[ref]?filesPill(S.credit[ref].files):'',
+    '<div class="card" id="filesBox" data-paint data-later>'+(S.credit&&S.credit[ref]?suppliedFilesHtml(S.credit[ref].files):'<div class="row"><span class="spin"></span><span class="small muted">Loading their files\u2026</span></div>')+'</div>',false,true);
 
   var g=groupOf(groupKey(a));
   h+='<div class="card tap" data-act="group" data-id="'+esc(groupKey(a))+'" style="padding-block:12px"><div class="row"><div class="grow"><div class="small muted">Applying with</div><div style="font-weight:750">'+
@@ -2785,7 +2786,7 @@ VIEWS.app = function(ref){
     '<a class="btn sm" target="_blank" rel="noopener" href="'+CENTRIX_URL+'" data-cx-open="'+esc(ref)+'">\uD83D\uDD0E Open Centrix</a>'+
     '<a class="small" target="_blank" rel="noopener" href="'+CENTRIX_SETUP+'">How to fill Centrix with it</a></div><div class="small muted" id="cxNote" data-paint data-later style="margin-block-start:6px"></div></div>');
   $('#app').innerHTML=h;
-  loadCredit(ref).then(function(c){ var n=$('#cxNote'); if(n) n.innerHTML=centrixNote(c); var p=$('#cxId'); if(p) p.innerHTML=photoIdHtml(c); var fb=$('#filesBox'); if(fb) fb.innerHTML=suppliedFilesHtml(c.files); })
+  loadCredit(ref).then(function(c){ var n=$('#cxNote'); if(n) n.innerHTML=centrixNote(c); var p=$('#cxId'); if(p) p.innerHTML=photoIdHtml(c); var fb=$('#filesBox'); if(fb) fb.innerHTML=suppliedFilesHtml(c.files); var fs=$('[data-sect="files"] .sect-s'); if(fs) fs.innerHTML=filesPill(c.files); })
     .catch(function(e){ var p=$('#cxId'); if(p) p.innerHTML=''; var fb=$('#filesBox'); if(fb) fb.innerHTML='<div class="err">'+esc(e&&e.message||'Couldn\u2019t load their files')+'</div>'; });
   loadRefs(ref).then(function(r){ var box=$('#refBox'); if(box) box.innerHTML=refListHtml(r); var tb=$('#ttBox'); if(tb) tb.innerHTML=tribunalHtml(a,r); })
     .catch(function(e){ var box=$('#refBox'); if(box) box.innerHTML='<div class="err">'+esc(e.message)+'</div>'; var tb=$('#ttBox'); if(tb) tb.innerHTML='<div class="err">'+esc(e.message)+'</div>'; });
@@ -2845,6 +2846,7 @@ function centrixData(c){
 }
 /* Every file supplied with the online form, under the question it answered: [{k, label, files: [{name, url}]}].
    They're Drive file links, so a tap opens them in the app's viewer (see DRIVE_FILE below), for everyone using the app. */
+function filesPill(groups){ var n=(groups||[]).reduce(function(t,g){ return t+g.files.length; },0); return countPill(n,'file'); }
 function suppliedFilesHtml(groups){
   groups=groups||[];
   if(!groups.length) return '<div class="small muted">No files were uploaded with this application.</div>';

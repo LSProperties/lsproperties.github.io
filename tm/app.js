@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.17.4';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.17.5';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1159,8 +1159,9 @@ function tenancyButton(key,ag){
 /* Cancel a built-in agreement (TM 3.17.4): choose whether the tenants who were sent a link are emailed, and add your own message */
 function cancelAgreementDialog(key){
   var ag=(groupLead(key)||{}).agreement||{};
-  var told=(ag.signers||[]).filter(function(s){ return s.sentAt&&!s.signedAt&&!/landlord/i.test(s.role||''); });
-  var names=told.map(function(s){ return esc(s.name||s.email||'Tenant'); }), list=names.length<2?names.join(''):names.slice(0,-1).join(', ')+' and '+names[names.length-1];
+  // 3.17.5: tenants who have already signed are told too (their signature won't be used)
+  var told=(ag.signers||[]).filter(function(s){ return (s.sentAt||s.signedAt)&&!/landlord/i.test(s.role||''); });
+  var names=told.map(function(s){ return esc(s.name||s.email||'Tenant')+(s.signedAt?' <span class="muted">(signed)</span>':''); }), list=names.length<2?names.join(''):names.slice(0,-1).join(', ')+' and '+names[names.length-1];
   var m=modal('<div class="title" style="font-size:1.1rem;margin-block-end:8px">Cancel the agreement?</div>'+
     '<div class="small muted" style="margin-block-end:12px">The signing links for <b>'+esc(groupName(key))+'</b> stop working, and you can then send a new agreement.</div>'+
     (told.length?'<label class="row" style="gap:10px;align-items:flex-start;margin-block-end:10px;cursor:pointer"><input type="checkbox" id="caNotify" checked style="width:20px;height:20px;margin:2px 0 0;flex:none">'+

@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-title" content="Rentals"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="theme-color" content="#0f766e">
 <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png">
 <title>Rentals</title>
-<link rel="stylesheet" href="shell.css?v=2026.10.17-113aa91">
+<link rel="stylesheet" href="shell.css?v=2026.10.17-b3c9a47">
 </head><body>
 <header><h1>Rentals</h1><div class="small" id="who"></div></header>
 <main>
@@ -29,13 +29,22 @@
     <a class="tile" href="fi/" data-area="fi"><span class="ico">&#x1F3E0;</span><span><b>Inspections</b><br><span class="small">Flat inspections, photos and reports</span></span></a>
     <a class="tile" href="tm/" data-area="tm"><span class="ico">&#x1F465;</span><span><b>Tenancies</b><br><span class="small">Viewings, applicants, agreements and bonds</span></span></a>
     <a class="tile" href="mt/" data-area="mt"><span class="ico">&#x1F527;</span><span><b>Maintenance</b><br><span class="small">Moisture Master filters and insulation checks</span></span></a>
-    <details id="devBox"><summary>Signed-in devices</summary><div id="devices" class="small">Loading&hellip;</div></details>
+    <a class="tile" href="#setup" id="setupTile"><span class="ico">&#x2699;&#xFE0F;</span><span><b>Setup</b><br><span class="small">My details, notifications, properties, users and access</span></span></a>
     <button id="signout" class="quiet" type="button">Sign out of this phone</button>
     <p class="small" id="ver"></p>
   </section>
+
+  <!-- Setup (one place for both apps' settings; setup.js) -->
+  <section id="setup" hidden>
+    <div class="setup-h"><button type="button" class="quiet" id="setupBack" aria-label="Back to the home screen">&#x2039; Back</button><h2>Setup</h2></div>
+    <div id="setupBody"></div>
+    <details id="devBox"><summary>Signed-in devices</summary><div id="devices" class="small">Loading&hellip;</div></details>
+  </section>
 </main>
-<script src="config.js?v=2026.10.17-113aa91"></script>
-<script src="api.js?v=2026.10.17-113aa91"></script>
-<script src="signin.js?v=2026.10.17-113aa91"></script>
+<script src="config.js?v=2026.10.17-b3c9a47"></script>
+<script src="api.js?v=2026.10.17-b3c9a47"></script>
+<script src="push.js?v=2026.10.17-b3c9a47"></script>
+<script src="signin.js?v=2026.10.17-b3c9a47"></script>
+<script src="setup.js?v=2026.10.17-b3c9a47"></script>
 <script src="https://accounts.google.com/gsi/client" async></script>
 </body></html>

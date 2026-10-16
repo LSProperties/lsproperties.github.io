@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.18.10';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.19.0';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -229,11 +229,15 @@ function saveRecent(){ store('fi-recent-cache',{items:S.recent,me:S.me}); }
 function changedHere(){ S.changeSeq=(S.changeSeq||0)+1; }
 /* Submitted inspections from ALL devices (from the Sheet), plus anything this device submitted that
    the server list doesn't include yet. Falls back to this device's list in demo mode / offline. */
+/* The inspector is the signed-in person (FI 1.19.0: their name from Setup › My details on the Rentals home screen).
+   Outside the Rentals app (demo) it's the name typed on this device, as before. */
+function inspectorName(){ var s=window.RentalsSession&&window.RentalsSession.get(); return String((s&&s.name)||localStorage.getItem('fi-inspector')||'').trim(); }
+function signedIn(){ return !!(window.RentalsSession&&window.RentalsSession.get()); }
 function recentList(){
   var list=(S.recent||[]).map(function(x){ return Object.assign({},x); }), ids={};
   list.forEach(function(x){ ids[x.id]=1; });
-  S.history.forEach(function(x){ if(!x.id || !ids[x.id]) list.push(Object.assign({mine:true,inspector:localStorage.getItem('fi-inspector')||''},x)); });
-  var myName=(localStorage.getItem('fi-inspector')||'').trim().toLowerCase();
+  S.history.forEach(function(x){ if(!x.id || !ids[x.id]) list.push(Object.assign({mine:true,inspector:inspectorName()},x)); });
+  var myName=inspectorName().toLowerCase();
   list.forEach(function(x){ if(!x.mine && !S.me && myName && String(x.inspector||'').trim().toLowerCase()===myName) x.mine=true; });
   list.sort(function(a,b){ return String(b.submittedAt||'').localeCompare(String(a.submittedAt||'')); });
   return list;
@@ -888,19 +892,20 @@ VIEWS.home = function(){
     var localIds={}; drafts.forEach(function(d){ localIds[d.id]=1; });
     var remote=remoteInProgress(localIds), nProg=drafts.length+remote.length;
     if(drafts.length) setTimeout(function(){ Backup.all(); checkForUpdate(); },500);
-    if(!S.tab) S.tab=nProg?'progress':'new';
+    if(!S.tab||S.tab==='setup') S.tab=nProg?'progress':'new';
     setTitle({'new':'New inspection',progress:'In progress',submitted:'Submitted',setup:'Setup'}[S.tab]);
-    var h= S.tab==='progress'? progressTabHtml(drafts,remote) : S.tab==='submitted'? submittedTabHtml() : S.tab==='setup'? setupTabHtml() : newTabHtml();
+    var h= S.tab==='progress'? progressTabHtml(drafts,remote) : S.tab==='submitted'? submittedTabHtml() : newTabHtml();
     $('#app').innerHTML=h;
     setFooter(tabBar(nProg));
   });
 };
 function tabBar(nProg){
   function b(id,ic,label,n){ return '<button type="button" data-act="tab" data-id="'+id+'" class="'+(S.tab===id?'on':'')+'"><span class="ic">'+ic+'</span>'+label+(n?'<span class="n">'+n+'</span>':'')+'</button>'; }
-  return '<div class="tabbar">'+b('new','＋','New')+b('progress','⏳','In progress',nProg)+b('submitted','✅','Submitted')+b('setup','⚙','Setup')+'</div>';
+  return '<div class="tabbar">'+b('new','＋','New')+b('progress','⏳','In progress',nProg)+b('submitted','✅','Submitted')+'<button type="button" data-act="refresh"><span class="ic">↻</span>Refresh</button></div>';   // Setup is on the Rentals home screen (1.19.0)
 }
 function newTabHtml(){
-  return '<input type="search" id="propSearch" placeholder="Search properties…" style="margin-block-end:10px"><div id="propList" data-paint>'+propListHtml('')+'</div>';
+  return '<input type="search" id="propSearch" placeholder="Search properties…" style="margin-block-end:10px"><div id="propList" data-paint>'+propListHtml('')+'</div>'+
+    '<div class="small muted" style="text-align:center;margin-block-start:18px">App version '+APP_VERSION+(S.serverVersion?' · backend '+esc(S.serverVersion):'')+(HAS_GAS?'':' · demo')+'</div>';
 }
 function progressTabHtml(drafts,remote){
   var h='';
@@ -946,14 +951,7 @@ function submittedListHtml(){
   if(HAS_GAS && S.recentOffline) h+='<div class="small muted" style="text-align:center;margin-block-start:6px">Offline — showing the list saved on this device.</div>';
   return h;
 }
-function setupTabHtml(){
-  var h='<div class="card tap" data-act="admin"><div class="row"><div class="tile t1">🏠</div><div class="grow"><div class="title">Manage properties</div><div class="small muted">Areas and checks for each property, and the letting details (admin PIN)</div></div><span class="chev">›</span></div></div>';
-  h+='<div class="card"><label class="fld" style="margin:0"><span>Your name as inspector</span><input type="text" id="setInspector" value="'+esc(localStorage.getItem('fi-inspector')||'')+'" placeholder="Used when you start an inspection"></label></div>';
-  if(window.RentalsPush) h+='<div class="card tap" data-act="notify"><div class="row"><div class="tile t1">🔔</div><div class="grow"><div class="title">Notifications</div><div class="small muted">Get told on this phone when an inspection is submitted, a form comes in or an agreement is signed</div></div><span class="chev">›</span></div></div>';
-  h+='<button class="btn block" type="button" data-act="refresh">↻ Refresh properties and inspections</button>';
-  h+='<div class="small muted" style="text-align:center;margin-block-start:18px">App version '+APP_VERSION+(S.serverVersion?' · backend '+esc(S.serverVersion):'')+(HAS_GAS?'':' · demo')+'</div>';
-  return h;
-}
+/* (1.19.0) The Setup tab is gone: Setup is on the Rentals home screen, and properties are edited in Setup › Properties there. */
 /* ---- Setup > Notifications (Rentals app only: the panel comes from ../push.js) ---- */
 VIEWS.notify = function(){
   setTitle('Notifications'); setFooter('<button class="btn" type="button" data-act="back">‹ Back</button>');
@@ -1025,7 +1023,7 @@ VIEWS.viewArea = function(ai){
 function propListHtml(q){
   q=(q||'').toLowerCase();
   var list=S.props.filter(function(p){ return !q || (p.name+' '+(p.address||'')).toLowerCase().indexOf(q)>=0; });
-  if(!list.length) return '<div class="card muted">No properties found. Add one in Setup › Manage properties.</div>';
+  if(!list.length) return '<div class="card muted">No properties found. Properties are added in Setup › Properties on the Rentals home screen.</div>';
   return list.map(function(p){ var n=0; p.areas.forEach(function(a){ n+=(a.items||[]).length; });
     var k=0; for(var c=0;c<p.id.length;c++) k+=p.id.charCodeAt(c);
     var last=recentList().find(function(x){ return (x.propertyId && x.propertyId===p.id) || (!x.propertyId && x.propertyName===p.name); });
@@ -1037,12 +1035,14 @@ function propListHtml(q){
 VIEWS.start = function(pid){
   var p=S.props.find(function(x){return x.id===pid;}); if(!p) return home();
   setTitle('New inspection');
-  var last=localStorage.getItem('fi-inspector')||'';
+  var last=inspectorName();
   $('#app').innerHTML='<div class="card"><div class="title">'+esc(p.name)+'</div><div class="small muted">'+esc(p.address||'')+'</div>'+
     (p.notes?'<div class="small" style="margin-block-start:8px">📝 '+esc(p.notes)+'</div>':'')+
     '<div class="small muted" style="margin-block-start:8px">'+p.areas.map(function(a){return esc(a.name);}).join(' · ')+'</div></div>'+
     '<div class="card"><label class="fld"><span>Inspection type</span><select id="stType">'+INSPECTION_TYPES.map(function(t){return '<option>'+esc(t)+'</option>';}).join('')+'</select></label>'+
-    '<label class="fld"><span>Inspector name</span><input type="text" id="stInspector" value="'+esc(last)+'" autocomplete="name"></label>'+
+    (signedIn()? '<div class="fld"><span style="display:block;font-weight:700;margin-block-end:4px">Inspector</span>'+(last? esc(last)+' <span class="small muted">(you)</span>'
+        : '<span class="small" style="color:var(--bad)">Add your name in Setup › My details on the Rentals home screen first.</span>')+'</div>'
+      : '<label class="fld"><span>Inspector name</span><input type="text" id="stInspector" value="'+esc(last)+'" autocomplete="name"></label>')+
     '<label class="fld"><span>Tenant(s) present / name (optional)</span><input type="text" id="stTenant"></label>'+
     '<div class="small muted">Start time will be recorded as '+esc(fmt(nowIso()))+'.</div></div>'+
     '<div id="priorInfo" data-paint data-later></div>';
@@ -1424,9 +1424,9 @@ document.addEventListener('click',function(ev){
     case 'open-prop': go('start',id); break;
     case 'begin':
       if(OLD_APP && S.retire==='block'){ toast('New inspections are started in the new Rentals app now.',6000); break; }
-      var p=S.props.find(function(x){return x.id===id;}), insp=$('#stInspector').value.trim();
-      if(!insp){ toast('Please enter the inspector name'); return; }
-      localStorage.setItem('fi-inspector',insp);
+      var p=S.props.find(function(x){return x.id===id;}), insp=signedIn()? inspectorName() : $('#stInspector').value.trim();
+      if(!insp){ toast(signedIn()?'Add your name in Setup › My details on the Rentals home screen first':'Please enter the inspector name',5000); return; }
+      if(!signedIn()) localStorage.setItem('fi-inspector',insp);
       S.draft=newDraft(clone(p),{type:$('#stType').value,inspector:insp,tenant:$('#stTenant').value.trim()});
       var nd=S.draft; attachPrior(nd,priorCacheGet(p.id));
       if(!nd.prior && HAS_GAS && navigator.onLine) fetchPrior(p.id).then(function(pr){ if(attachPrior(nd,pr)){ persist(true); if(S.draft===nd) render(); } });
@@ -1516,7 +1516,6 @@ document.addEventListener('click',function(ev){
 });
 document.addEventListener('input',function(ev){
   if(ev.target.id==='subSearch'){ S.subQ=ev.target.value; S.recentShow=10; var sl=$('#subList'); if(sl) sl.innerHTML=submittedListHtml(); return; }
-  if(ev.target.id==='setInspector'){ try{ localStorage.setItem('fi-inspector',ev.target.value.trim()); }catch(e){} return; }
   var el=ev.target, b=el.getAttribute('data-bind'), d=S.draft;
   if(el.id==='propSearch'){ $('#propList').innerHTML=propListHtml(el.value); return; }
   if(b==='note'){ var it=d.areas[+el.getAttribute('data-a')].items[+el.getAttribute('data-t')]; it.note=el.value; it.noteAt=nowIso(); persist(); }

@@ -1,6 +1,6 @@
 (function(){
 'use strict';
-var APP_VERSION = '1.0.0';   // Maintenance page (API 0.4.0)
+var APP_VERSION = '1.1.0';   // Maintenance page (1.1.0: jobs can be turned off; Manage jobs opens from Setup on the home screen)
 var $=function(s,r){ return (r||document).querySelector(s); };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -97,9 +97,11 @@ function taskHtml(){
 }
 function manageHtml(){
   return '<p class="small muted" style="margin:4px 6px 12px">How often each job is done, and how many days ahead the reminder comes.</p>'+(S.d.types||[]).map(function(t){
-    return '<div class="card" data-type="'+esc(t.id)+'"><div class="title">'+esc(t.name)+'</div>'+
-      '<div class="small muted">'+(/moisture/i.test(t.appliesTo)?'At properties with <b>Has a Moisture Master unit</b> ticked (Tenancies › Setup › Properties)':'At every active property')+'</div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
+    return '<div class="card" data-type="'+esc(t.id)+'"'+(t.active?'':' style="opacity:.75"')+'><div class="title">'+esc(t.name)+(t.active?'':' <span class="st" style="background:var(--none-soft);color:var(--none)">Off</span>')+'</div>'+
+      '<div class="small muted">'+(/moisture/i.test(t.appliesTo)?'At properties with <b>Has a Moisture Master unit</b> ticked (Setup › Properties)':'At every active property')+'</div>'+
+      // 1.1.0: a job can be turned off (it leaves the list and sends no reminders; its history is kept)
+      '<label class="switch"><input type="checkbox" data-k="active"'+(t.active?' checked':'')+'>Active (on the list, with reminders)</label>'+
+      '<div class="pair">'+
       '<label class="fld"><span>Every (months)</span><input type="number" inputmode="numeric" min="1" max="60" step="1" data-k="every" value="'+t.every+'"></label>'+
       '<label class="fld"><span>Remind (days before)</span><input type="number" inputmode="numeric" min="0" max="90" step="1" data-k="remind" value="'+t.remind+'"></label></div>'+
       '<label class="fld"><span>How to (shown on each job)</span><textarea data-k="howTo" maxlength="500">'+esc(t.howTo)+'</textarea></label>'+
@@ -128,14 +130,14 @@ function removeEntry(row,b){
 }
 document.addEventListener('click',function(e){
   var t=e.target.closest('button'); if(!t) return;
-  if(t.id==='backBtn'){ S.view='list'; S.other=false; render(); return; }
+  if(t.id==='backBtn'){ if(S.fromSetup&&S.view==='manage'){ location.href='../#setup'; return; } S.view='list'; S.other=false; render(); return; }
   if(t.dataset.task){ S.key=t.dataset.task; S.view='task'; S.other=false; render(); return; }
   if(t.dataset.filter){ S.filter=t.dataset.filter; render(); return; }
   if(t.dataset.undo){ $('#toast').classList.add('hidden'); removeEntry(t.dataset.undo,null); return; }
   if(t.dataset.del){ if(confirm('Remove this entry from the history?')) removeEntry(t.dataset.del,t); return; }
   if(t.dataset.saveType){
     var c=t.closest('[data-type]'), v=function(k){ return $('[data-k="'+k+'"]',c).value; }, er=$('[data-type-err]',c);
-    busy(t,api('mtSaveType',[t.dataset.saveType,{every:Number(v('every')),remind:Number(v('remind')),howTo:v('howTo')}])).then(function(d){ S.d=d; render(); toast('Saved.'); },function(x){ er.textContent=x&&x.message||'Couldn’t save'; });
+    busy(t,api('mtSaveType',[t.dataset.saveType,{every:Number(v('every')),remind:Number(v('remind')),howTo:v('howTo'),active:$('[data-k="active"]',c).checked}])).then(function(d){ S.d=d; render(); toast('Saved.'); },function(x){ er.textContent=x&&x.message||'Couldn’t save'; });
     return;
   }
   var a=t.dataset.act;
@@ -162,7 +164,7 @@ var Demo={
   },
   state:function(){
     var d=this.d, today=d.today, add=function(s,m){ var x=new Date(s+'T00:00:00Z'); x.setUTCMonth(x.getUTCMonth()+m); return x.toISOString().slice(0,10); }, tasks=[];
-    d.types.forEach(function(t){ d.props.forEach(function(p){
+    d.types.filter(function(t){ return t.active; }).forEach(function(t){ d.props.forEach(function(p){
       if(/moisture/i.test(t.appliesTo)&&!p.mm) return;
       var mine=d.log.filter(function(e){ return e.typeId===t.id&&e.propertyId===p.propertyId; }).sort(function(a,b){ return a.doneOn.localeCompare(b.doneOn); }).pop();
       var due=mine?add(mine.doneOn,t.every):'', days=due?Math.round((new Date(due)-new Date(today))/864e5):null;
@@ -179,12 +181,13 @@ var Demo={
       try{
         if(fn==='mtMarkDone') self.d.log.push({row:self.d.next++,typeId:a[0],propertyId:a[1],doneOn:a[2]||self.d.today,by:'dad@example.com',note:a[3]||''});
         else if(fn==='mtDeleteEntry') self.d.log=self.d.log.filter(function(e){ return e.row!==a[0]; });
-        else if(fn==='mtSaveType'){ var t=self.d.types.filter(function(x){ return x.id===a[0]; })[0]; t.every=a[1].every; t.remind=a[1].remind; t.howTo=a[1].howTo; }
+        else if(fn==='mtSaveType'){ var t=self.d.types.filter(function(x){ return x.id===a[0]; })[0]; t.every=a[1].every; t.remind=a[1].remind; t.howTo=a[1].howTo; if(a[1].active!==undefined) t.active=!!a[1].active; }
         ok(self.state());
       }catch(e){ fail(e); }
     },250); });
   }
 };
 if(DEMO) $('#demoBanner').classList.remove('hidden');
+if(location.hash==='#manage'&&canEdit()){ S.view='manage'; S.fromSetup=true; try{ history.replaceState(null,'',location.pathname+location.search); }catch(x){} }   // from Setup on the home screen
 load();
 })();

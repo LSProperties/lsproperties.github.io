@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.19.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.20.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -114,7 +114,7 @@ function speedNote(fn,ms,timing,ok){ S.speed=S.speed||[]; S.speed.unshift({fn:fn
 /* ================= State & navigation ================= */
 var S = { st:null, stack:[], cur:null, filter:'active', q:'', refs:{}, join:{}, tab:(function(){ try{ var v=localStorage.getItem('tm-tab'); return ['viewings','groups','tenancies','setup'].indexOf(v)>=0?v:(v?'groups':'viewings'); }catch(e){ return 'viewings'; } })(), tfilter:'current', gfilter:'active', people:null };
 function go(view,arg){ if(S.cur) S.stack.push(S.cur); S.cur={view:view,arg:arg}; S.sectVisit={}; render(); window.scrollTo(0,0); }
-function back(){ var p=S.stack.pop(); S.cur=p||{view:'home'}; S.sectVisit={}; render(); window.scrollTo(0,0); }
+function back(){ var p=S.stack.pop(); if(!p&&S.fromSetup){ location.href='../#setup'; return; } S.cur=p||{view:'home'}; S.sectVisit={}; render(); window.scrollTo(0,0); }
 function home(){ S.stack=[]; S.cur={view:'home'}; S.sectVisit={}; render(); window.scrollTo(0,0); }
 function setFooter(html){ var f=$('#footer'); if(html){ $('#footerIn').innerHTML=html; f.classList.remove('hidden'); } else f.classList.add('hidden'); }
 function setTitle(t){ $('#title').textContent=t; $('#backBtn').classList.toggle('hidden', S.cur.view==='home'); }
@@ -492,7 +492,9 @@ function checkGroupCard(g,deciding){
 var VIEWS = {};
 
 /* Home tabs: Viewings (bookings and who came), Applicant groups (forms, references, decisions), Tenancies, Setup */
-VIEWS.home = function(){ return S.tab==='groups'? groupsHome() : S.tab==='people'? peopleHome() : S.tab==='tenancies'? tenanciesHome() : S.tab==='setup'? setupHome() : viewingsHome(); };
+// TM 3.20.0: inside the Rentals app, Setup is on the home screen (../#setup), which opens the screens below by link
+var IN_RENTALS=!!(window.RentalsSession&&window.RentalsSession.get());
+VIEWS.home = function(){ if(IN_RENTALS&&S.tab==='setup') S.tab='viewings'; return S.tab==='groups'? groupsHome() : S.tab==='people'? peopleHome() : S.tab==='tenancies'? tenanciesHome() : S.tab==='setup'? setupHome() : viewingsHome(); };
 function tabBar(){
   var todo=allGroups().filter(function(g){ return g.members.some(needsChecks); }).length;
   return '<div class="tabbar">'+
@@ -500,7 +502,7 @@ function tabBar(){
     '<button type="button" data-act="tab" data-id="groups" class="'+(S.tab==='groups'?'on':'')+'"><span class="ic">\uD83D\uDC65</span>Groups'+(todo?'<span class="n">'+todo+'</span>':'')+'</button>'+
     '<button type="button" data-act="tab" data-id="people" class="'+(S.tab==='people'?'on':'')+'"><span class="ic">\uD83E\uDDD1</span>People</button>'+
     '<button type="button" data-act="tab" data-id="tenancies" class="'+(S.tab==='tenancies'?'on':'')+'"><span class="ic">\uD83C\uDFE0</span>Tenancies'+(bondTodo()?'<span class="n">'+bondTodo()+'</span>':'')+'</button>'+
-    '<button type="button" data-act="tab" data-id="setup" class="'+(S.tab==='setup'?'on':'')+'"><span class="ic">\u2699\uFE0F</span>Setup</button>'+
+    (IN_RENTALS?'':'<button type="button" data-act="tab" data-id="setup" class="'+(S.tab==='setup'?'on':'')+'"><span class="ic">\u2699\uFE0F</span>Setup</button>')+
     '<button type="button" data-act="refresh"><span class="ic">\u21BB</span>Refresh</button></div>';
 }
 function versionLine(){ return '<div class="small muted" style="text-align:center;margin-block-start:18px">App version '+APP_VERSION+(S.st&&S.st.version?' \u00B7 backend '+esc(S.st.version):'')+(HAS_GAS?'':' \u00B7 demo')+'</div>'; }
@@ -658,7 +660,7 @@ VIEWS.viewingForm = function(id){
   }
   h+='<div class="grid2"><label class="fld"><span>Street address</span><input type="text" id="vfA1" value="'+esc(v?v.address1:'')+'" placeholder="36 Grange St"></label>'+
     '<label class="fld"><span>Suburb / city</span><input type="text" id="vfA2" value="'+esc(v?v.address2:'')+'" placeholder="North Dunedin"></label></div>'+
-    '<div id="vfAddrNote" class="small muted hidden" style="margin:-6px 0 12px">The address comes from the property \u2014 change it in Property settings (group screen) or Flat Inspections Admin.</div>'+
+    '<div id="vfAddrNote" class="small muted hidden" style="margin:-6px 0 12px">The address comes from the property \u2014 change it in Setup \u203A Properties.</div>'+
     '<div class="grid2"><label class="fld"><span>Rent per week ($)</span><input type="number" inputmode="decimal" id="vfRent" value="'+esc(v?v.rent:'')+'"></label>'+
     '<label class="fld"><span>Available from</span><input type="date" id="vfMove" value="'+esc(v?dateInput(v.moveIn):'')+'"></label></div>'+
     '<label class="fld"><span>Length of tenancy</span><select id="vfTen">'+TENANCY.map(function(t){ return '<option'+(v&&v.tenancy===t?' selected':'')+'>'+t+'</option>'; }).join('')+
@@ -4272,7 +4274,15 @@ net();
    with the fresh data unless something is being typed. Only the very first open on a phone waits for the server. */
 /* Opened from a notification: #app=<ref> or #tenancy=<id> opens that record (once it's loaded; a new application may
    only arrive with the refresh). */
+var SETUP_LINKS={props:'setupProps',landlords:'setupLandlords',questions:'setupQuestions',terms:'setupTerms',test:'testSuite'};
 function openFromLink(){
+  var sm=/^#setup=(\w+)$/.exec(location.hash||'');
+  if(sm&&S.st){
+    try{ history.replaceState(null,'',location.pathname+location.search); }catch(x){}
+    if(sm[1]==='speed'){ S.fromSetup=true; return speedDialog(); }
+    var v=SETUP_LINKS[sm[1]]; if(!v) return;
+    S.qsE=null; S.tmE=null; S.fromSetup=true; S.stack=[]; S.cur={view:v}; S.sectVisit={}; render(); window.scrollTo(0,0); return;
+  }
   var m=/^#(app|tenancy)=(.+)$/.exec(location.hash||''); if(!m||!S.st) return;
   var id=decodeURIComponent(m[2]), ok=m[1]==='app'? appByRef(id) : tenancyById(id); if(!ok) return;
   try{ history.replaceState(null,'',location.pathname+location.search); }catch(x){}

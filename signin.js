@@ -4,7 +4,7 @@
   var CFG = window.RENTALS_CONFIG, S = window.RentalsSession, call = window.rentalsCall;
   var next = (location.search.match(/[?&]next=(fi|tm)\b/) || [])[1] || '';
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function show(id) { ['loading', 'signin', 'home'].forEach(function (x) { $(x).hidden = x !== id; }); }
+  function show(id) { ['loading', 'signin', 'home', 'setup'].forEach(function (x) { $(x).hidden = x !== id; }); }
   function msg(t, bad) { $('signMsg').textContent = t || ''; $('signMsg').className = 'msg' + (bad ? ' bad' : ''); }
   $('ver').textContent = 'Version ' + CFG.version;
 
@@ -24,8 +24,12 @@
       if (lvl === 'view' && !tag) { tag = document.createElement('span'); tag.className = 'vo small'; tag.textContent = 'View only'; tag.style.cssText = 'margin-inline-start:auto;flex:none;padding:3px 8px;border-radius:99px;background:var(--line);font-weight:700'; t.appendChild(tag); }
       if (lvl !== 'view' && tag) tag.remove();
     });
+    // #setup (the Setup tile, or Back from a settings screen in Tenancies / Maintenance) opens Setup (setup.js)
+    if (location.hash === '#setup' && window.RentalsSetup) { window.RentalsSetup.open(); return; }
     show('home');
   }
+  window.RentalsHome = { show: show, home: home };
+  window.addEventListener('hashchange', function () { if (S.get()) home(); });
 
   /* Google sign-in */
   var tries = 0;

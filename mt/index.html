@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-app="mt">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com; connect-src 'self' data: blob: https://script.google.com https://script.googleusercontent.com; frame-src 'self' data: blob:; media-src 'self' data: blob:; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="../icon-180.png">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f766e">
+<title>Maintenance</title>
+<style>
+/* Maintenance (Rentals app, area 'mt'): kept deliberately simple and large for easy use on a phone */
+:root{
+  --bg:#f3f7f6;--surface:#ffffff;--surface-2:#f6faf9;--text:#10201d;--muted:#5b6b67;--line:#dce7e4;
+  --brand:#0f766e;--brand-soft:#ccfbf1;--bad:#c81e1e;--bad-soft:#fde8e8;--warn:#b45309;--warn-soft:#fef3c7;--ok:#15803d;--ok-soft:#dcfce7;--none:#64748b;--none-soft:#eef2f6;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0b1513;--surface:#13211e;--surface-2:#182a26;--text:#e8f3f0;--muted:#9fb3ad;--line:#26413b;
+  --brand-soft:#123b36;--bad:#f87171;--bad-soft:#3b1414;--warn:#fbbf24;--warn-soft:#3a2a08;--ok:#4ade80;--ok-soft:#10301c;--none:#94a3b8;--none-soft:#1e293b;
+}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:18px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+.bar{position:sticky;inset-block-start:0;z-index:5;display:flex;align-items:center;gap:10px;padding:14px 16px 16px;padding-block-start:max(14px,env(safe-area-inset-top));
+  background:linear-gradient(135deg,#0d9488,#0f766e 60%,#115e59);color:#fff;border-radius:0 0 22px 22px}
+.bar h1{flex:1;margin:0;font-size:1.35rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icon-btn{border:0;background:rgba(255,255,255,.2);color:#fff;font-size:1.6rem;line-height:1;width:44px;height:44px;border-radius:12px;cursor:pointer;flex:none}
+main{max-width:640px;margin:0 auto;padding:14px 14px calc(30px + env(safe-area-inset-bottom))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px;margin-block-end:12px}
+.title{font-weight:800;font-size:1.1rem}
+.small{font-size:.88rem}.muted{color:var(--muted)}
+.hidden{display:none!important}
+.sec{font-size:.85rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 6px 8px}
+.job{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:start;font:inherit;color:inherit;cursor:pointer;border-inline-start:8px solid var(--line)}
+.job .dot{font-size:1.5rem;line-height:1.2;flex:none}
+.job b{display:block;font-size:1.08rem}
+.st{display:inline-block;margin-block-start:6px;padding:4px 10px;border-radius:99px;font-weight:800;font-size:.92rem}
+.overdue{border-inline-start-color:var(--bad)}.overdue .st{background:var(--bad-soft);color:var(--bad)}
+.due,.soon{border-inline-start-color:var(--warn)}.due .st,.soon .st{background:var(--warn-soft);color:var(--warn)}
+.ok{border-inline-start-color:var(--ok)}.ok .st{background:var(--ok-soft);color:var(--ok)}
+.none{border-inline-start-color:var(--none)}.none .st{background:var(--none-soft);color:var(--none)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:12px 18px;border-radius:14px;border:2px solid var(--line);background:var(--surface);
+  color:var(--text);font:inherit;font-weight:800;cursor:pointer}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.big{width:100%;min-height:68px;font-size:1.2rem}
+.btn.danger{color:var(--bad)}
+.btn.sm{min-height:40px;padding:6px 12px;font-size:.9rem}
+.btn:disabled{opacity:.6}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;border:2px solid var(--line);background:var(--surface);color:var(--text);border-radius:99px;padding:8px 14px;font:inherit;font-weight:700;cursor:pointer}
+.chips button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+label.fld{display:block;margin-block:10px}
+label.fld span{display:block;font-weight:700;margin-block-end:6px}
+input[type=date],input[type=number],textarea{width:100%;font:inherit;font-size:18px;padding:12px;border:2px solid var(--line);border-radius:12px;background:var(--surface-2);color:var(--text)}
+textarea{min-height:80px}
+.big-status{font-size:1.25rem;font-weight:800;padding:14px;border-radius:14px;margin-block:10px}
+.hist{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-block-start:1px solid var(--line)}
+.hist:first-child{border:0}
+.err{color:var(--bad);font-weight:700}
+.toast{position:fixed;inset-inline:12px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:20;max-width:600px;margin:0 auto;background:#10201d;color:#fff;padding:14px 16px;border-radius:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.3);display:flex;gap:12px;align-items:center}
+.toast button{margin-inline-start:auto;border:0;background:rgba(255,255,255,.18);color:#fff;font:inherit;font-weight:800;border-radius:10px;padding:8px 12px;cursor:pointer}
+.spin{display:inline-block;width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:s 1s linear infinite;vertical-align:middle}
+@keyframes s{to{transform:rotate(360deg)}}
+.demo{background:#f59e0b;color:#111;text-align:center;font-weight:700;padding:8px;font-size:.9rem}
+</style>
+<style>/* Rentals app: header under the see-through status bar; its content starts 20px lower, below the band iOS softens under the status bar */ .bar{padding-block-start:max(14px,calc(env(safe-area-inset-top) + 20px))}</style>
+</head>
+<body>
+<header class="bar">
+  <button id="backBtn" class="icon-btn hidden" type="button" aria-label="Back">&#x2039;</button>
+  <h1 id="title">Maintenance</h1>
+</header>
+<div id="demoBanner" class="demo hidden">Demo mode: not connected. Changes stay in this browser.</div>
+<main id="app"><div class="card"><span class="spin"></span> Loading&#x2026;</div></main>
+<div id="toast" class="toast hidden" role="status"></div>
+
+<script src="../config.js?v=2026.10.17-ab076e8"></script>
+<script src="../api.js?v=2026.10.17-ab076e8"></script>
+<script src="../push.js?v=2026.10.17-ab076e8"></script>
+<script src="app.js?v=2026.10.17-ab076e8"></script>
+</body>
+</html>

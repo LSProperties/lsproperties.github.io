@@ -16,6 +16,12 @@
     get: function () { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } },
     set: function (s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} },
     clear: function () { try { localStorage.removeItem(KEY); } catch (e) {} },
+    /** 'edit' | 'view' | 'none' for an area ('tm', 'fi', 'mt'): from the sign-in (API 0.4.0), else from the role. The server decides; this only shapes the screen. */
+    level: function (area) {
+      var s = this.get(); if (!s) return 'none';
+      if (s.access && s.access[area]) return s.access[area];
+      return s.role === 'viewer' ? 'view' : 'edit';
+    },
     device: function () {
       var ua = navigator.userAgent || '';
       var dev = /iPhone/.test(ua) ? 'iPhone' : /iPad|Macintosh.*Mobile/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'iPad'
@@ -79,6 +85,8 @@
 
   /* No sign-in on this phone: go to the sign-in page first (on opening only) */
   if (APP && !Session.get()) { leaving = true; location.replace('../?next=' + APP); }
+  /* An area this person has no access to (a bookmark, or access just removed): back to the home screen */
+  else if (APP && Session.level(APP) === 'none') { leaving = true; location.replace('../'); }
 
   /* A sign-in that ends while a page is open: say so, keep the page (and anything typed) where it is */
   var shown = false;
@@ -107,8 +115,7 @@
       logo.style.cssText = 'display:block;width:36px;height:36px';
       home.appendChild(logo);
       if (title && title.parentNode === bar) bar.insertBefore(home, title); else bar.insertBefore(home, bar.firstChild);
-      var me = Session.get();
-      if (me && me.role === 'viewer') {   // view-only people see it on every page (the server refuses any change they try)
+      if (Session.level(APP) === 'view') {   // view-only people see it on every page of that area (the server refuses any change they try)
         var vo = document.createElement('span');
         vo.textContent = 'View only'; vo.title = 'You can look at everything, but not change anything';
         vo.style.cssText = 'flex:none;align-self:center;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.22);color:#fff;' +

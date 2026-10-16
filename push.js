@@ -11,7 +11,8 @@
               ['An agreement is ready for me to sign', '', 'toSign', ''],
               ['An inspection is submitted', 'By someone else', '', 'inspections'],
               ['Morning summary at 8 am', 'Bonds and Bond Hub notices due, fixed terms ending, agreements waiting on someone', 'digest', 'digestAll'],
-              ['A device signs in to Rentals', 'Mine = my account', 'signIns', 'signInsAll']];
+              ['A device signs in to Rentals', 'Mine = my account', 'signIns', 'signInsAll'],
+              ['Maintenance is due', 'A week ahead, on the day, and weekly if it’s overdue', '', 'maintenance']];   // Maintenance (API 0.4.0)
   var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   var can = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -28,7 +29,9 @@
   function readCache() { var k = cacheKey(); if (!k) return null; try { var c = JSON.parse(localStorage.getItem(k) || 'null'); return c && c.prefs && c.publicKey ? c : null; } catch (e) { return null; } }
   function writeCache(i) { var k = cacheKey(); if (!k) return; try { localStorage.setItem(k, JSON.stringify({ publicKey: i.publicKey, prefs: i.prefs, thisDevice: !!i.thisDevice, endpoint: i.thisDevice ? i.endpoint || '' : '' })); } catch (e) {} }
 
-  function mount(el) {
+  /* opts.only: [keys] shows just those choices, one big tick box each (the Maintenance page: "maintenance") */
+  function mount(el, opts) {
+    opts = opts || {};
     var info = readCache();
     if (!info) el.innerHTML = '<div class="card"><div class="small muted">Loading…</div></div>';
     function msg(t, bad) { var m = el.querySelector('[data-rp-msg]'); if (m) { m.textContent = t || ''; m.style.color = bad ? 'var(--bad, #b42318)' : ''; } }
@@ -39,20 +42,26 @@
         : on ? 'On for this ' + (/iPhone/.test(navigator.userAgent) ? 'iPhone' : 'device') + '.' : 'Off for this device.';
       var cell = function (k) {
         return '<td style="text-align:center;padding:10px 4px">' + (k ? '<input type="checkbox" data-rp="' + k + '"' + (info.prefs[k] ? ' checked' : '') +
-          ' style="width:22px;height:22px;min-width:0;margin:0;accent-color:var(--brand, #0f766e)" aria-label="' + (/All$|^inspections$/.test(k) ? 'Everyone’s' : 'Mine') + '">' : '<span class="muted">—</span>') + '</td>';
+          ' style="width:22px;height:22px;min-width:0;margin:0;accent-color:var(--brand, #0f766e)" aria-label="' + (/All$|^(inspections|maintenance)$/.test(k) ? 'Everyone’s' : 'Mine') + '">' : '<span class="muted">—</span>') + '</td>';
       };
+      var only = opts.only ? ROWS.filter(function (r) { return opts.only.indexOf(r[2]) >= 0 || opts.only.indexOf(r[3]) >= 0; }) : null;
+      var choices = only ? '<div class="card"><div class="title">Remind me</div>' + only.map(function (r) {
+          var k = opts.only.indexOf(r[3]) >= 0 ? r[3] : r[2];
+          return '<label style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;cursor:pointer"><input type="checkbox" data-rp="' + k + '"' + (info.prefs[k] ? ' checked' : '') +
+            ' style="width:26px;height:26px;min-width:0;margin:0;flex:none;accent-color:var(--brand, #0f766e)"><span><b>' + esc(r[0]) + '</b>' + (r[1] ? '<div class="small muted">' + esc(r[1]) + '</div>' : '') + '</span></label>';
+        }).join('') + '<div class="small muted">Turn notifications on for this device above, too.</div></div>' : null;
       el.innerHTML =
         '<div class="card"><div class="title">This device</div><div class="small muted" style="margin-block:4px 10px">' + esc(state) + '</div>' +
           '<div style="display:flex;flex-wrap:wrap;gap:8px">' +
           (can && !on && !blocked ? '<button class="btn primary" type="button" data-rp-act="on">Turn on notifications</button>' : '') +
           (on ? '<button class="btn" type="button" data-rp-act="test">Send a test</button><button class="btn" type="button" data-rp-act="off">Turn off</button>' : '') +
-          '</div></div>' +
+          '</div></div>' + (choices ||
         '<div class="card"><div class="title">Tell me when</div>' +
           '<div class="small muted" style="margin-block:4px 6px"><b>Mine</b> = forms, agreements and tenancies you sent. <b>Everyone’s</b> = the ones other people sent too. Applies to all your devices.</div>' +
           '<table style="width:100%;border-collapse:collapse"><thead><tr><th></th><th class="small" style="width:64px;font-weight:700">Mine</th><th class="small" style="width:84px;font-weight:700">Everyone’s</th></tr></thead><tbody>' +
           ROWS.map(function (r) {
             return '<tr style="border-block-start:1px solid var(--line, #e2e8f0)"><td style="padding:10px 4px 10px 0">' + esc(r[0]) + (r[1] ? '<div class="small muted">' + esc(r[1]) + '</div>' : '') + '</td>' + cell(r[2]) + cell(r[3]) + '</tr>';
-          }).join('') + '</tbody></table></div>' +
+          }).join('') + '</tbody></table></div>') +
         '<div class="small" data-rp-msg role="status" style="margin:4px 6px 12px"></div>';
       if (note) msg(note, bad);
     }

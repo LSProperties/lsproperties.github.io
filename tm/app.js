@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.18.2';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.19.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1297,6 +1297,7 @@ function sendAgreementDialog(key){
       row('Internet',pp.internetIncluded?'Included in the rent':'','Tenant arranges and pays')+
       row('Electricity',pp.power==='included'?'Included in the rent':pp.power==='capped'?'Included up to $'+money2(pp.powerCap)+' a month; anything over is paid within '+(pp.powerDays||14)+' days'+((pp.rooms||[]).length?', split equally between '+pp.rooms.length+' rooms':''):'','Tenant pays')+
       row('Bottled gas',pp.bottledGas?'Yes \u2014 the tenant pays for the gas they use; the landlord pays the bottle hire':'','No')+
+      row('Moisture Master',pp.moistureMaster?'Yes \u2014 its filter change is tracked in Maintenance':'','No')+
       row('Pets',String(pp.pets||'').trim(),'Standard wording')+row('Additional terms',(pp.additionalTerms||[]).map(function(x,i){ return (i+1)+'. '+x; }).join('\n'),'None')+
       '<button class="btn sm" type="button" data-sa="setup">\u270E Edit in Setup</button></div>'; upd(); }
   else api.tmAgreementFields(pp.propertyId).then(function(r){
@@ -1557,7 +1558,7 @@ function newPropDialog(fromId){
     if(setupProps().some(function(x){ return x.active && String(x.name||'').trim().toLowerCase()===name.toLowerCase(); })){ $('#npErr',m).textContent='A property with that name already exists \u2014 use a different name.'; return; }
     m.remove();
     var e={_for:'new'}; PE_FIELDS.forEach(function(k){ e[k]=''; });
-    if(p){ ['notes','rent','tenancy','bond','maxOccupants','insurer','insurancePolicy','excess','templateId','templateTitle','landlord','rentPaymentDetails','pets','unitTitle','bodyCorporateRules','bottledGas','internetIncluded','power','powerCap','powerDays'].forEach(function(k){ e[k]=p[k]!=null?p[k]:''; });
+    if(p){ ['notes','rent','tenancy','bond','maxOccupants','insurer','insurancePolicy','excess','templateId','templateTitle','landlord','rentPaymentDetails','pets','unitTitle','bodyCorporateRules','bottledGas','internetIncluded','power','powerCap','powerDays','moistureMaster'].forEach(function(k){ e[k]=p[k]!=null?p[k]:''; });
       e.rooms=clone(p.rooms||[]);
       e.additionalTerms=(p.additionalTerms||[]).slice();
       e.chattels=(p.chattels||[]).slice(); e.insulation=insOf(p.insulation); e.healthyHomes=hhOf(p.healthyHomes);
@@ -1580,7 +1581,7 @@ function propProblem(p){
   return '';
 }
 var PE_FIELDS=['propertyId','name','address1','address2','notes','rent','tenancy','bond','maxOccupants','insurer','insurancePolicy','excess','insulationDate','templateId','templateTitle','landlord',
-  'rentPaymentDetails','pets','unitTitle','bodyCorporateRules','bottledGas','internetIncluded','power','powerCap','powerDays'];
+  'rentPaymentDetails','pets','unitTitle','bodyCorporateRules','bottledGas','internetIncluded','power','powerCap','powerDays','moistureMaster'];
 /* Free-text property terms written into built-in agreements: [key, label, required for built-in, placeholder] */
 var ESIGN_TERMS=[['rentPaymentDetails','How rent is paid',true,'e.g. Weekly in advance to 12-3456-7890123-00 (K Box), reference: your surname'],
   ['pets','Pets',false,'Leave blank to use the standard wording']];
@@ -1782,7 +1783,11 @@ function hhHtml(h){
         '<label class="fld"><span>Why the top-up is acceptable (required)</span><textarea rows="3" data-hh="toleranceReason" placeholder="e.g. Required heating capacity is 5.7 kW and the existing heat pump (installed before 1 July 2019) has 3.3 kW. A 2.4 kW fixed electric heater with a thermostat has been installed to top up to the required amount.">'+esc(h.toleranceReason)+'</textarea></label>':'')
      : '')+
     '<label class="fld"><span>Additional heating provided (optional)</span><textarea rows="2" data-hh="additionalHeating" placeholder="e.g. Panel heaters with thermostats in bedrooms 1 and 2; heated towel rail in the bathroom">'+esc(h.additionalHeating)+'</textarea></label>'+
-    '<div class="sasec">Ventilation</div>'+fldLabel('Do all habitable spaces meet the ventilation standard?')+
+    '<div class="sasec">Ventilation</div>'+
+    // TM 3.19.0: a Moisture Master unit puts the property on the Maintenance list for a yearly filter change
+    '<label class="row" style="gap:10px;margin-block-end:12px;cursor:pointer;align-items:flex-start"><input type="checkbox" data-pe-cb="moistureMaster"'+(S.pe&&S.pe.moistureMaster?' checked':'')+' style="width:22px;height:22px;flex:none">'+
+      '<span>Has a Moisture Master unit <span class="small muted">(its filter change is tracked in Maintenance)</span></span></label>'+
+    fldLabel('Do all habitable spaces meet the ventilation standard?')+
     segHtml('hh-seg','ventilation',h.ventilation,[['yes','Yes, all habitable spaces'],['partial','Partial']])+
     (h.ventilation==='partial'?'<label class="fld"><span>Which spaces do and don\u2019t (required)</span><textarea rows="2" data-hh="ventilationNotes" placeholder="e.g. All bedrooms and the lounge have opening windows; the hallway has none">'+esc(h.ventilationNotes)+'</textarea></label>':'')+
     fldLabel('Kitchen: rangehood or extractor fan')+segHtml('hh-seg','kitchenFan',h.kitchenFan,[['150','150 mm or more'],['pre2019','Smaller, before 1 Jul 2019'],['none','None']])+
@@ -2704,7 +2709,7 @@ function bondFollows(bond,oldRent){ return bond===''||bond==null||(+oldRent>0&&M
 /* Form fields for the Setup and tenancy screens (typing and picking) */
 function editField(el){
   if(!el.hasAttribute) return false;
-  if(/^(internetIncluded|bottledGas)$/.test(el.getAttribute('data-pe-cb')||'')&&S.pe){ S.pe[el.getAttribute('data-pe-cb')]=el.checked; return true; }
+  if(/^(internetIncluded|bottledGas|moistureMaster)$/.test(el.getAttribute('data-pe-cb')||'')&&S.pe){ S.pe[el.getAttribute('data-pe-cb')]=el.checked; return true; }
   if(el.getAttribute('data-pe-cb')==='unitTitle'&&S.pe){ if(S.pe.unitTitle!==el.checked){ S.pe.unitTitle=el.checked; peBcRedraw(); } return true; }
   if(el.hasAttribute('data-pe-cb')&&S.pe){ if(S.pe[el.getAttribute('data-pe-cb')]!==el.checked){ S.pe[el.getAttribute('data-pe-cb')]=el.checked; keepScroll(render); } return true; }
   if(el.hasAttribute('data-bc-upload')&&S.pe){ var bf=el.files&&el.files[0]; if(bf&&!el._sent){ el._sent=1; uploadBc(bf); } return true; }

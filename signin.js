@@ -9,13 +9,21 @@
   $('ver').textContent = 'Version ' + CFG.version;
 
   function signedIn(r) {
-    S.set({ session: r.session, sid: r.sid, email: r.email, name: r.name, role: r.role });
+    S.set({ session: r.session, sid: r.sid, email: r.email, name: r.name, role: r.role, access: r.access || null });
     if (next) { location.replace(next + '/'); return; }
     home();
   }
   function home() {
     var s = S.get();
-    $('who').textContent = s ? (s.name ? s.name + ' · ' : '') + s.email + (s.role === 'viewer' ? ' · View only' : '') : '';
+    $('who').textContent = s ? (s.name ? s.name + ' · ' : '') + s.email : '';
+    // each area: hidden with no access, marked "View only" when they can only look (API 0.4.0: Users tab Tenancies / Inspections / Maintenance)
+    [].forEach.call(document.querySelectorAll('[data-area]'), function (t) {
+      var lvl = window.RentalsSession.level(t.getAttribute('data-area'));
+      t.hidden = lvl === 'none';
+      var tag = t.querySelector('.vo');
+      if (lvl === 'view' && !tag) { tag = document.createElement('span'); tag.className = 'vo small'; tag.textContent = 'View only'; tag.style.cssText = 'margin-inline-start:auto;flex:none;padding:3px 8px;border-radius:99px;background:var(--line);font-weight:700'; t.appendChild(tag); }
+      if (lvl !== 'view' && tag) tag.remove();
+    });
     show('home');
   }
 
@@ -80,7 +88,7 @@
   if (S.get()) {
     if (next) { location.replace(next + '/'); return; }
     home();
-    call('auth', 'whoami').then(function (u) { var s = S.get(); s.name = u.name; s.role = u.role; S.set(s); home(); },
+    call('auth', 'whoami').then(function (u) { var s = S.get(); s.name = u.name; s.role = u.role; s.access = u.access || null; S.set(s); home(); },
       function (e) { if (e.code === 'AUTH') { S.clear(); show('signin'); msg('Please sign in again.'); google(); } });
   } else { show('signin'); google(); }
 })();

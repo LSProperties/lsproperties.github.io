@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.17.3';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.17.4';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -1156,6 +1156,29 @@ function tenancyButton(key,ag){
 }
 /* Each signer in order with when they were sent the agreement, opened it and signed it (updated by Check status) */
 /* resend: {act, id} adds Email again / Text / Copy to each person who has a link but hasn't signed (several can be signing at once) */
+/* Cancel a built-in agreement (TM 3.17.4): choose whether the tenants who were sent a link are emailed, and add your own message */
+function cancelAgreementDialog(key){
+  var ag=(groupLead(key)||{}).agreement||{};
+  var told=(ag.signers||[]).filter(function(s){ return s.sentAt&&!s.signedAt&&!/landlord/i.test(s.role||''); });
+  var names=told.map(function(s){ return esc(s.name||s.email||'Tenant'); }), list=names.length<2?names.join(''):names.slice(0,-1).join(', ')+' and '+names[names.length-1];
+  var m=modal('<div class="title" style="font-size:1.1rem;margin-block-end:8px">Cancel the agreement?</div>'+
+    '<div class="small muted" style="margin-block-end:12px">The signing links for <b>'+esc(groupName(key))+'</b> stop working, and you can then send a new agreement.</div>'+
+    (told.length?'<label class="row" style="gap:10px;align-items:flex-start;margin-block-end:10px;cursor:pointer"><input type="checkbox" id="caNotify" checked style="width:20px;height:20px;margin:2px 0 0;flex:none">'+
+      '<span>Email '+list+' to say it\u2019s been cancelled</span></label>'+
+      '<label class="fld" id="caMsgWrap"><span>Your message (optional)</span><textarea id="caMsg" rows="4" maxlength="2000" placeholder="e.g. We\u2019ve corrected the address and will send you a new agreement shortly."></textarea></label>'+
+      '<div class="small muted" id="caNote" style="margin:-6px 0 12px">Added to the cancellation email, under the standard wording.</div>'
+      :'<div class="small muted" style="margin-block-end:12px">No tenant has been sent a link yet, so nobody needs to be told.</div>')+
+    '<div id="caErr" class="err"></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" type="button" data-ca="keep">Keep it</button><button class="btn danger" type="button" data-ca="go">Cancel agreement</button></div>');
+  var nt=$('#caNotify',m);
+  if(nt) nt.onchange=function(){ $('#caMsgWrap',m).style.display=$('#caNote',m).style.display=nt.checked?'':'none'; };
+  m.addEventListener('click',function(e){
+    var b=e.target.closest('[data-ca]'); if(!b) return;
+    if(b.getAttribute('data-ca')==='keep') return m.remove();
+    var opts={notify:!!(nt&&nt.checked),message:nt&&nt.checked?$('#caMsg',m).value.trim():''};
+    busy(b,'Cancelling',api.tmCancelAgreement(key,opts)).then(function(st){ m.remove(); apply(st); toast(opts.notify?'Agreement cancelled \u2014 tenants emailed':'Agreement cancelled'); render(); })
+      .catch(function(x){ $('#caErr',m).textContent=x&&x.message||'Couldn\u2019t cancel the agreement'; });
+  });
+}
 function agreementSignersHtml(ag,resend){
   var list=ag.signers||[]; if(!list.length) return '';
   var stopped=ag.status==='Cancelled'||ag.status==='Declined'||ag.status==='Expired';
@@ -3731,8 +3754,10 @@ document.addEventListener('click',function(e){
     api.tmMarkEmailSent(F.ref,F.slot,false).then(function(r){ S.refs[F.ref]=r; })
       .catch(function(e){ if(c) c.emailSent=was; if(S.form===F && S.cur.view==='ref') render(); toast('The email flag wasn'+String.fromCharCode(8217)+'t cleared: '+e.message,6000); });
   });
-  if(act==='cancel-agreement') return ask('Cancel the agreement sent to <b>'+esc(groupName(id))+'</b>? '+(isEsign((groupLead(id)||{}).agreement)?'Anyone already sent a link will be told':'DocHub will tell the signers')+' it\u2019s been cancelled, and you can then send a new one.','Cancel agreement').then(function(ok){ if(!ok) return;
-    return busy(t,'Cancelling',api.tmCancelAgreement(id)).then(function(st){ apply(st); toast('Agreement cancelled'); render(); }).catch(function(){}); });
+  if(act==='cancel-agreement'){
+    if(isEsign((groupLead(id)||{}).agreement)) return cancelAgreementDialog(id);
+    return ask('Cancel the agreement sent to <b>'+esc(groupName(id))+'</b>? DocHub will tell the signers it\u2019s been cancelled, and you can then send a new one.','Cancel agreement').then(function(ok){ if(!ok) return;
+      return busy(t,'Cancelling',api.tmCancelAgreement(id)).then(function(st){ apply(st); toast('Agreement cancelled'); render(); }).catch(function(){}); }); }
   if(act==='copy-link'){ var la=appByRef(id); if(!la.applyLink){ toast('The online form address isn\u2019t set up (APPLY_URL)'); return; } copyText(la.applyLink,'Link copied \u2014 paste it into a text to '+la.name.split(' ')[0]); return; }
   if(act==='cancel-form'){ var ca=appByRef(id);
     return ask('Cancel <b>'+whoHtml(ca)+'</b>\u2019s application form? Their link stops working straight away'+(ca.status==='In Progress'?' and anything they\u2019ve filled in can\u2019t be sent':'')+'. They aren\u2019t emailed. You can send them a new link later with Resend link.','Yes, cancel form').then(function(ok){ if(!ok) return;

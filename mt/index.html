@@ -78,7 +78,7 @@ textarea{min-height:80px}
 /* 1.2.0: the apps' look (gradient header, soft background, cards with shadows, icon tiles), still large and simple */
 :root{--grad:linear-gradient(135deg,#0d9488 0%,#0891b2 45%,#4f46e5 100%);--shadow:0 1px 2px rgba(15,60,80,.06),0 8px 24px -8px rgba(15,60,80,.18);--shadow-lg:0 20px 50px -12px rgba(8,145,178,.45);--glow:0 10px 26px -8px rgba(13,148,136,.55)}
 @media (prefers-color-scheme:dark){:root{--shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -10px rgba(0,0,0,.7)}}
-html,body{font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+html,body{font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior-y:none}   /* no pull-to-refresh (as in the apps) */
 body{min-height:100vh;background:radial-gradient(900px 500px at 110% -10%,rgba(34,211,238,.16),transparent 60%),radial-gradient(700px 500px at -20% 20%,rgba(79,70,229,.12),transparent 60%),var(--bg);background-attachment:fixed}
 .bar{background:var(--grad);background-size:200% 200%;animation:shift 12s ease infinite;border-radius:0 0 26px 26px;box-shadow:var(--shadow-lg)}
 @keyframes shift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
@@ -121,9 +121,9 @@ main{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
 <nav id="mtTabs" class="mttabs hidden" aria-label="Maintenance"></nav>
 <div id="toast" class="toast hidden" role="status"></div>
 
-<script src="../config.js?v=2026.10.17-5d684ec"></script>
-<script src="../api.js?v=2026.10.17-5d684ec"></script>
-<script src="../push.js?v=2026.10.17-5d684ec"></script>
-<script src="app.js?v=2026.10.17-5d684ec"></script>
+<script src="../config.js?v=2026.10.17-64b5e4a"></script>
+<script src="../api.js?v=2026.10.17-64b5e4a"></script>
+<script src="../push.js?v=2026.10.17-64b5e4a"></script>
+<script src="app.js?v=2026.10.17-64b5e4a"></script>
 </body>
 </html>

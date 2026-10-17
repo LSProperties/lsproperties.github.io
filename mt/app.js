@@ -1,6 +1,6 @@
 (function(){
 'use strict';
-var APP_VERSION = '1.3.0';   // Maintenance page (1.1.0: jobs can be turned off; Manage jobs opens from Setup on the home screen)
+var APP_VERSION = '1.3.1';   // Maintenance page (1.1.0: jobs can be turned off; Manage jobs opens from Setup on the home screen)
 var $=function(s,r){ return (r||document).querySelector(s); };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];

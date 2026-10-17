@@ -97,7 +97,8 @@
     // users and access
     h += '<div class="card"><div class="card-h"><div class="ic-tile t5" aria-hidden="true">\uD83D\uDC65</div><div class="grow"><div class="title">Users and access</div>' +
       '<div class="small">Who can sign in, and Edit / View / None for each area. Changes need the admin PIN, are logged and emailed to the owner, and apply within 5 minutes.</div></div>' +
-      '<button class="btn" type="button" data-su="add" style="align-self:flex-start">\uFF0B Add</button></div>';
+      '<button class="btn" type="button" data-su="add" style="align-self:flex-start">\uFF0B Add</button></div>' +
+      (D.note ? '<div class="small" style="margin:0 0 8px;font-weight:700;color:' + (/didn/.test(D.note) ? 'var(--bad)' : 'var(--ok)') + '">' + esc(D.note) + '</div>' : '');
     if (!u) h += '<div class="small">Loading…</div>';
     else if (u.error) h += '<div class="err">' + esc(u.error) + '</div>';
     else {
@@ -134,7 +135,11 @@
       '<label class="fld"><span>Can sign in</span><select data-uf="active"' + (locked ? ' disabled' : '') + '><option value="yes"' + (x.active ? ' selected' : '') + '>Yes</option><option value="no"' + (x.active ? '' : ' selected') + '>No</option></select></label></div>' +
       '<div class="grid3">' + sel('Tenancies', x.tenancies) + sel('Inspections', x.inspections) + sel('Maintenance', x.maintenance) + '</div>' +
       '<div class="small" style="margin:-4px 0 10px">From role: a Viewer gets View, everyone else Edit.</div>' +
-      (locked ? '' : '<label class="fld"><span>Admin PIN</span><input data-uf="pin" type="password" inputmode="numeric" autocomplete="off"></label>') +
+      // the welcome email: the app link and how to add it to the home screen and sign in
+      (isNew ? '<label style="display:flex;gap:10px;align-items:flex-start;margin:0 0 12px;cursor:pointer"><input type="checkbox" data-uf="welcome" checked style="width:22px;height:22px;flex:none;min-width:0;margin:0">' +
+          '<span><b>Email them how to get started</b><span class="small" style="display:block">The link to the app, and step-by-step how to add it to their home screen and sign in</span></span></label>'
+        : (!x.owner && !x.me && x.active ? '<button class="btn" type="button" data-su="welcome" data-email="' + esc(x.email) + '" style="margin:0 0 12px">\u2709 Send the welcome email again</button> <span class="small" id="welMsg"></span>' : '')) +
+
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (locked ? '' : '<button class="btn primary" type="button" data-su="save-user" data-new="' + (isNew ? '1' : '') + '">Save</button>') +
       '<button class="btn" type="button" data-su="cancel-user">' + (locked ? 'Close' : 'Cancel') + '</button></div><div class="err" id="ufMsg" style="margin-top:8px"></div></div>';
   }
@@ -153,15 +158,54 @@
       var b = e.target.closest('[data-su]'); if (!b) return;
       var act = b.getAttribute('data-su');
       if (act === 'cancel-user') return closeUserModal();
+      if (act === 'welcome') { $('welMsg').textContent = 'Sending\u2026';
+        return busy(b, call('auth', 'welcomeUser', [], { email: b.getAttribute('data-email') })).then(function (r) { $('welMsg').textContent = r.welcome.ok ? 'Sent.' : r.welcome.error; },
+          function (x) { $('welMsg').textContent = x.message; }); }
       if (act === 'save-user') {
         var f = $('userForm'), v = function (k) { var el = f.querySelector('[data-uf="' + k + '"]'); return el ? el.value : ''; }, isNew = !!b.getAttribute('data-new');
         var u = { email: isNew ? v('email') : D.editing, name: v('name'), role: v('role'), active: v('active') === 'yes', tenancies: v('tenancies'), inspections: v('inspections'), maintenance: v('maintenance') };
+        var wb = f.querySelector('[data-uf="welcome"]'); if (wb) u.welcome = wb.checked;
         $('ufMsg').textContent = '';
-        busy(b, call('auth', 'saveUser', [], { pin: v('pin'), user: u, isNew: isNew })).then(function (r) { D.users = r; closeUserModal(); draw(); },
-          function (x) { $('ufMsg').textContent = x.message; });
+        // the admin PIN is asked for in its own pop-up once Save is pressed
+        pinPrompt('Enter the admin PIN to save ' + (isNew ? 'this person' : 'the changes') + '.', function (pin) {
+          return call('auth', 'saveUser', [], { pin: pin, user: u, isNew: isNew }).then(function (r) {
+            D.users = r; D.note = r.welcome ? (r.welcome.ok ? 'Welcome email sent to ' + r.welcome.to + '.' : 'Saved, but the welcome email didn\u2019t send: ' + r.welcome.error) : '';
+            closeUserModal(); draw(); });
+        }, function (x) { $('ufMsg').textContent = x.message; });
       }
     });
     var first = m.querySelector('input:not([disabled]),select:not([disabled])'); if (first && key === 'new') first.focus();
+  }
+  /* The admin PIN, asked for in a small pop-up on top. save(pin) returns a promise: a wrong or locked PIN keeps the pop-up open
+     with the message (to try again); any other problem closes it and goes to fail (shown on the form underneath). */
+  function pinPrompt(text, save, fail) {
+    var p = document.createElement('div');
+    p.className = 'modal'; p.id = 'pinModal'; p.style.zIndex = '40'; p.setAttribute('role', 'dialog'); p.setAttribute('aria-modal', 'true');
+    p.innerHTML = '<div class="box" style="max-width:360px"><div class="card-h" style="margin-bottom:8px"><div class="ic-tile t1" aria-hidden="true">🔒</div><div class="grow"><div class="title">Admin PIN</div>' +
+      '<div class="small">' + esc(text) + '</div></div></div>' +
+      '<label class="fld"><span>PIN</span><input id="pinIn" type="password" inputmode="numeric" autocomplete="off" maxlength="8"></label>' +
+      '<div class="err" id="pinErr" style="margin:-4px 0 10px;min-height:1.2em"></div>' +
+      '<div style="display:flex;gap:8px"><button class="btn primary" type="button" data-pin="ok" style="flex:1">Save</button><button class="btn" type="button" data-pin="cancel">Cancel</button></div></div>';
+    document.body.appendChild(p);
+    var input = $('pinIn'), close = function () { p.remove(); };
+    setTimeout(function () { input.focus(); }, 50);
+    function go(btn) {
+      var pin = input.value.trim();
+      if (!/^\d{4,8}$/.test(pin)) { $('pinErr').textContent = 'Enter the 4 to 8 digit PIN.'; input.focus(); return; }
+      $('pinErr').textContent = '';
+      busy(btn, save(pin)).then(close, function (x) {
+        var msg = x && x.message || 'Couldn’t save';
+        if (/PIN/i.test(msg) && !/Set the admin PIN first/i.test(msg)) { $('pinErr').textContent = msg; input.value = ''; input.focus(); }   // wrong or locked: try again here
+        else { close(); fail(x); }
+      });
+    }
+    p.addEventListener('click', function (e) {
+      if (e.target === p) return close();
+      var b = e.target.closest('[data-pin]'); if (!b) return;
+      if (b.getAttribute('data-pin') === 'cancel') return close();
+      go(b);
+    });
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(p.querySelector('[data-pin="ok"]')); if (e.key === 'Escape') { e.stopPropagation(); close(); } });
   }
   function closeUserModal() { var m = $('userModal'); if (m) m.remove(); document.body.classList.remove('modal-open'); D.editing = null; }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('userModal')) closeUserModal(); });

@@ -1,6 +1,6 @@
 (function(){
 'use strict';
-var APP_VERSION = '1.3.1';   // Maintenance page (1.1.0: jobs can be turned off; Manage jobs opens from Setup on the home screen)
+var APP_VERSION = '1.4.0';   // Maintenance page (1.1.0: jobs can be turned off; Manage jobs opens from Setup on the home screen)
 var $=function(s,r){ return (r||document).querySelector(s); };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -30,10 +30,12 @@ function syncHtml(){
 }
 function load(){
   S.refreshing=true;
-  return api('mtBootstrap').then(function(d){ S.refreshing=false; S.offline=false; S.d=keep(d); S.err=''; if(S.view==='list') render(); },
+  var first=!S.d;   // nothing on screen yet (no saved copy): always draw, whichever screen it opened on (e.g. Manage jobs from Setup)
+  return api('mtBootstrap').then(function(d){ S.refreshing=false; S.offline=false; S.d=keep(d); S.err=''; if(first||S.view==='list') render(); },
     function(e){ S.refreshing=false; if(S.d){ S.offline=true; if(S.view==='list') render(); } else { S.err=e&&e.message||'Couldn\u2019t load'; render(); } });
 }
 function nameOf(email){ var n=(S.d&&S.d.names||{})[String(email||'').toLowerCase()]; return n||String(email||'').split('@')[0]||''; }
+function iconOf(id){ var t=(S.d&&S.d.types||[]).filter(function(x){ return x.id===id; })[0]; return (t&&t.icon)||ICON[id]||'\uD83D\uDD27'; }
 function typeOf(id){ return (S.d.types||[]).filter(function(t){ return t.id===id; })[0]||{}; }
 function taskOf(key){ return (S.d.tasks||[]).filter(function(k){ return k.typeId+'|'+k.propertyId===key; })[0]; }
 
@@ -80,7 +82,7 @@ function listHtml(){
   groups.forEach(function(g){
     var list=tasks.filter(g[1]); if(!list.length) return;
     h+='<div class="sec">'+esc(g[0])+' ('+list.length+')</div>'+list.map(function(k){
-      return '<button type="button" class="card job '+k.status+'" data-task="'+esc(k.typeId+'|'+k.propertyId)+'"><span class="tile" aria-hidden="true">'+(ICON[k.typeId]||'\uD83D\uDD27')+'</span>'+
+      return '<button type="button" class="card job '+k.status+'" data-task="'+esc(k.typeId+'|'+k.propertyId)+'"><span class="tile" aria-hidden="true">'+iconOf(k.typeId)+'</span>'+
         '<span class="txt"><b>'+esc(k.property)+'</b><span class="muted">'+esc(k.typeName)+'</span><br><span class="st">'+esc(statusText(k))+'</span></span><span class="chev" aria-hidden="true">\u203A</span></button>';
     }).join('');
   });
@@ -114,10 +116,17 @@ function taskHtml(){
   }).join(''):'<div class="muted">Nothing recorded yet'+(k.typeId==='INS'&&k.lastDone?' here (the date above is from the property’s insulation details).':'.')+'</div>')+'</div>';
   return h;
 }
+function whereText(t){
+  if(/moisture/i.test(t.appliesTo)) return 'At properties with <b>Has a Moisture Master unit</b> ticked (Setup \u203A Properties)';
+  if(/chosen/i.test(t.appliesTo)){ var ps=(S.d.properties||[]).filter(function(p){ return (t.properties||[]).indexOf(p.propertyId)>=0; }); return 'At '+ps.length+' chosen propert'+(ps.length===1?'y':'ies')+(ps.length&&ps.length<4?': '+ps.map(function(p){ return esc(p.label.split(',')[0]); }).join(', '):''); }
+  return 'At every active property';
+}
 function manageHtml(){
-  return '<p class="small muted" style="margin:4px 6px 12px">How often each job is done, and how many days ahead the reminder comes.</p>'+(S.d.types||[]).map(function(t){
-    return '<div class="card" data-type="'+esc(t.id)+'"'+(t.active?'':' style="opacity:.75"')+'><div class="title">'+esc(t.name)+(t.active?'':' <span class="st" style="background:var(--none-soft);color:var(--none)">Off</span>')+'</div>'+
-      '<div class="small muted">'+(/moisture/i.test(t.appliesTo)?'At properties with <b>Has a Moisture Master unit</b> ticked (Setup › Properties)':'At every active property')+'</div>'+
+  return '<button class="btn primary big" type="button" data-act="new-type" style="margin-block-end:14px">\uFF0B New job</button>'+
+    '<p class="small muted" style="margin:4px 6px 12px">How often each job is done, and how many days ahead the reminder comes.</p>'+(S.d.types||[]).map(function(t){
+    return '<div class="card" data-type="'+esc(t.id)+'"'+(t.active?'':' style="opacity:.75"')+'><div class="title"><span aria-hidden="true">'+iconOf(t.id)+'</span> '+esc(t.name)+(t.active?'':' <span class="st" style="background:var(--none-soft);color:var(--none)">Off</span>')+'</div>'+
+      '<div class="small muted">'+whereText(t)+'</div>'+
+      (t.builtIn?'':'<button class="btn sm" type="button" data-edit-type="'+esc(t.id)+'" style="margin-block-start:10px">\u270F\uFE0F Name, picture and properties</button>')+
       // 1.1.0: a job can be turned off (it leaves the list and sends no reminders; its history is kept)
       '<label class="switch"><input type="checkbox" data-k="active"'+(t.active?' checked':'')+'>Active (on the list, with reminders)</label>'+
       '<div class="pair">'+
@@ -127,6 +136,53 @@ function manageHtml(){
       '<button class="btn primary" type="button" data-save-type="'+esc(t.id)+'">Save</button> <span class="err" data-type-err></span></div>';
   }).join('');
 }
+
+/* ---------- New job / edit a job added here (pop-up) ---------- */
+var TF=null;   // the form being filled: {id, name, icon, every, remind, appliesTo, properties, howTo}
+function typeModal(id){
+  var t=id? typeOf(id) : null;
+  TF={ id:id||'', name:t?t.name:'', icon:t?(t.icon||iconOf(t.id)):(S.d.icons||['\uD83D\uDD27'])[0], every:t?t.every:12, remind:t?t.remind:7,
+       appliesTo:t?t.appliesTo:'All properties', properties:t?(t.properties||[]).slice():[], howTo:t?t.howTo:'' };
+  var m=document.createElement('div'); m.className='modal'; m.id='typeModal'; m.setAttribute('role','dialog'); m.setAttribute('aria-modal','true');
+  m.innerHTML='<div class="box" id="typeBox"></div>'; document.body.appendChild(m); document.body.classList.add('modal-open');
+  drawTypeForm();
+  m.addEventListener('click',function(e){
+    if(e.target===m) return closeTypeModal();
+    var b=e.target.closest('button'); if(!b) return;
+    readTypeForm();
+    if(b.dataset.icon){ TF.icon=b.dataset.icon; return drawTypeForm(); }
+    if(b.dataset.applies){ TF.appliesTo=b.dataset.applies; return drawTypeForm(); }
+    if(b.dataset.tf==='cancel') return closeTypeModal();
+    if(b.dataset.tf==='save'){
+      var d={name:TF.name,icon:TF.icon,every:Number(TF.every),remind:Number(TF.remind),appliesTo:TF.appliesTo,properties:TF.properties,howTo:TF.howTo};
+      if(!d.name){ $('#tfErr').textContent='Give the job a name.'; return; }
+      if(d.appliesTo==='Chosen properties'&&!d.properties.length){ $('#tfErr').textContent='Tick at least one property.'; return; }
+      var p=TF.id? api('mtSaveType',[TF.id,d]) : api('mtCreateType',[d]);
+      busy(b,p).then(function(r){ S.d=keep(r); var isNew=!TF.id, nm=TF.name; closeTypeModal(); render(); toast(isNew?nm+' added.':'Saved.'); },function(x){ var er=$('#tfErr'); if(er) er.textContent=x&&x.message||'Couldn\u2019t save'; });
+    }
+  });
+}
+function readTypeForm(){ var b=$('#typeBox'); if(!b||!TF) return; var v=function(k){ var el=b.querySelector('[data-tk="'+k+'"]'); return el?el.value:''; };
+  TF.name=v('name').trim(); TF.every=v('every'); TF.remind=v('remind'); TF.howTo=v('howTo');
+  if(TF.appliesTo==='Chosen properties') TF.properties=[].map.call(b.querySelectorAll('[data-tp]:checked'),function(x){ return x.getAttribute('data-tp'); }); }
+function drawTypeForm(){
+  var b=$('#typeBox'); if(!b) return;
+  var icons=S.d.icons||['\uD83D\uDD27'], props=S.d.properties||[];
+  b.innerHTML='<div class="title" style="font-size:1.3rem;margin-block-end:4px">'+(TF.id?'Change the job':'New job')+'</div>'+
+    '<label class="fld"><span>What is the job?</span><input type="text" data-tk="name" maxlength="80" value="'+esc(TF.name)+'" placeholder="e.g. Heat pump service"></label>'+
+    '<span class="lbl">Picture</span><div class="icons">'+icons.map(function(ic){ return '<button type="button" data-icon="'+esc(ic)+'" class="'+(ic===TF.icon?'on':'')+'" aria-label="'+esc(ic)+'">'+ic+'</button>'; }).join('')+'</div>'+
+    '<div class="pair"><label class="fld"><span>Every (months)</span><input type="number" inputmode="numeric" min="1" max="60" step="1" data-tk="every" value="'+esc(TF.every)+'"></label>'+
+      '<label class="fld"><span>Remind (days before)</span><input type="number" inputmode="numeric" min="0" max="90" step="1" data-tk="remind" value="'+esc(TF.remind)+'"></label></div>'+
+    '<span class="lbl">Which properties?</span><div class="choice">'+[['All properties','Every active property'],['Moisture Master','Properties with a Moisture Master unit'],['Chosen properties','Only the ones I tick']].map(function(c){
+      return '<button type="button" data-applies="'+c[0]+'" class="'+(TF.appliesTo===c[0]?'on':'')+'">'+(TF.appliesTo===c[0]?'\u2713 ':'')+c[1]+'</button>'; }).join('')+'</div>'+
+    (TF.appliesTo==='Chosen properties'?'<div class="plist">'+(props.length?props.map(function(p){
+      return '<label><input type="checkbox" data-tp="'+esc(p.propertyId)+'"'+(TF.properties.indexOf(p.propertyId)>=0?' checked':'')+'><span>'+esc(p.label)+'</span></label>'; }).join(''):'<div class="small muted" style="padding:12px">No active properties.</div>')+'</div>':'')+
+    '<label class="fld"><span>How to (optional, shown on each job)</span><textarea data-tk="howTo" maxlength="500">'+esc(TF.howTo)+'</textarea></label>'+
+    '<div id="tfErr" class="err" style="margin-block:4px 10px"></div>'+
+    '<div style="display:flex;gap:10px"><button class="btn primary" type="button" data-tf="save" style="flex:1">'+(TF.id?'Save':'Add the job')+'</button><button class="btn" type="button" data-tf="cancel">Cancel</button></div>';
+}
+function closeTypeModal(){ var m=$('#typeModal'); if(m) m.remove(); document.body.classList.remove('modal-open'); TF=null; }
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&$('#typeModal')) closeTypeModal(); });
 
 /* ---------- actions ---------- */
 var toastTimer=null;
@@ -150,6 +206,8 @@ function removeEntry(row,b){
 document.addEventListener('click',function(e){
   var t=e.target.closest('button'); if(!t) return;
   if(t.id==='backBtn'){ if(S.fromSetup&&S.view==='manage'){ location.href='../#setup'; return; } S.view='list'; S.other=false; render(); return; }
+  if(t.closest('#typeModal')) return;
+  if(t.dataset.editType){ typeModal(t.dataset.editType); return; }
   if(t.dataset.tab){ S.view=t.dataset.tab; S.other=false; S.fromSetup=false; render(); return; }   // the bottom menu
   if(t.dataset.task){ S.key=t.dataset.task; S.view='task'; S.other=false; render(); return; }
   if(t.dataset.filter){ S.filter=t.dataset.filter; render(); return; }
@@ -163,6 +221,7 @@ document.addEventListener('click',function(e){
   var a=t.dataset.act;
   if(a==='reload'){ S.err=''; render(); load(); }
   else if(a==='manage'||a==='reminders'){ S.view=a; render(); }
+  else if(a==='new-type') typeModal('');
   else if(a==='done') markDone(t,'');
   else if(a==='other'){ S.other=true; render(); }
   else if(a==='other-off'){ S.other=false; render(); }
@@ -175,8 +234,8 @@ var Demo={
   init:function(){
     var today=new Date(), iso=function(x){ return x.toISOString().slice(0,10); }, ago=function(m,dd){ var x=new Date(today); x.setMonth(x.getMonth()-m); x.setDate(x.getDate()+(dd||0)); return iso(x); };
     this.d={ version:APP_VERSION, today:iso(today), names:{'dad@example.com':'Dad'},
-      types:[{id:'MM',name:'Moisture Master filter change',every:12,remind:7,appliesTo:'Moisture Master',howTo:'Change the filter in the Moisture Master unit.',active:true},
-             {id:'INS',name:'Ceiling insulation inspection',every:12,remind:7,appliesTo:'All properties',howTo:'Check the ceiling insulation is in place and in reasonable condition.',active:true}],
+      types:[{id:'MM',builtIn:true,name:'Moisture Master filter change',every:12,remind:7,appliesTo:'Moisture Master',howTo:'Change the filter in the Moisture Master unit.',active:true},
+             {id:'INS',builtIn:true,name:'Ceiling insulation inspection',every:12,remind:7,appliesTo:'All properties',howTo:'Check the ceiling insulation is in place and in reasonable condition.',active:true}],
       props:[{propertyId:'P1',label:'12 Smith Street, Mornington',mm:true},{propertyId:'P2',label:'3 Anzac Avenue, Dunedin',mm:true},{propertyId:'P3',label:'9 Hill Road, Mosgiel',mm:false}],
       log:[{row:2,typeId:'MM',propertyId:'P1',doneOn:ago(12,-3),by:'dad@example.com',note:''},{row:3,typeId:'MM',propertyId:'P2',doneOn:ago(12,5),by:'dad@example.com',note:'Spare filter in the garage'},
            {row:4,typeId:'INS',propertyId:'P1',doneOn:ago(4),by:'dad@example.com',note:''},{row:5,typeId:'INS',propertyId:'P2',doneOn:ago(11,-20),by:'dad@example.com',note:''}],
@@ -186,6 +245,7 @@ var Demo={
     var d=this.d, today=d.today, add=function(s,m){ var x=new Date(s+'T00:00:00Z'); x.setUTCMonth(x.getUTCMonth()+m); return x.toISOString().slice(0,10); }, tasks=[];
     d.types.filter(function(t){ return t.active; }).forEach(function(t){ d.props.forEach(function(p){
       if(/moisture/i.test(t.appliesTo)&&!p.mm) return;
+      if(/chosen/i.test(t.appliesTo)&&(t.properties||[]).indexOf(p.propertyId)<0) return;
       var mine=d.log.filter(function(e){ return e.typeId===t.id&&e.propertyId===p.propertyId; }).sort(function(a,b){ return a.doneOn.localeCompare(b.doneOn); }).pop();
       var due=mine?add(mine.doneOn,t.every):'', days=due?Math.round((new Date(due)-new Date(today))/864e5):null;
       tasks.push({typeId:t.id,typeName:t.name,propertyId:p.propertyId,property:p.label,lastDone:mine?mine.doneOn:'',lastBy:mine?mine.by:'',due:due,days:days,
@@ -193,7 +253,9 @@ var Demo={
     }); });
     var rank={overdue:0,due:1,soon:2,none:3,ok:4};
     tasks.sort(function(a,b){ return rank[a.status]-rank[b.status]||(a.due||'').localeCompare(b.due||''); });
-    return JSON.parse(JSON.stringify({version:d.version,today:today,names:d.names,types:d.types,tasks:tasks,log:d.log}));
+    return JSON.parse(JSON.stringify({version:d.version,today:today,names:d.names,types:d.types,tasks:tasks,log:d.log,
+      icons:['\uD83D\uDD27','\uD83D\uDCA7','\uD83C\uDFE0','\uD83D\uDD25','\uD83C\uDF3F','\uD83E\uDDEF','\uD83E\uDE9F','\uD83D\uDEBF','\u2744\uFE0F','\uD83D\uDD0C','\uD83E\uDDF9','\uD83D\uDC1B'],
+      properties:d.props.map(function(p){ return {propertyId:p.propertyId,label:p.label,moistureMaster:p.mm}; })}));
   },
   call:function(fn,a){
     var self=this; if(!this.d) this.init();
@@ -201,7 +263,10 @@ var Demo={
       try{
         if(fn==='mtMarkDone') self.d.log.push({row:self.d.next++,typeId:a[0],propertyId:a[1],doneOn:a[2]||self.d.today,by:'dad@example.com',note:a[3]||''});
         else if(fn==='mtDeleteEntry') self.d.log=self.d.log.filter(function(e){ return e.row!==a[0]; });
-        else if(fn==='mtSaveType'){ var t=self.d.types.filter(function(x){ return x.id===a[0]; })[0]; t.every=a[1].every; t.remind=a[1].remind; t.howTo=a[1].howTo; if(a[1].active!==undefined) t.active=!!a[1].active; }
+        else if(fn==='mtSaveType'){ var t=self.d.types.filter(function(x){ return x.id===a[0]; })[0]; t.every=a[1].every; t.remind=a[1].remind; t.howTo=a[1].howTo; if(a[1].active!==undefined) t.active=!!a[1].active;
+          if(a[1].name!==undefined&&!t.builtIn){ t.name=a[1].name; t.icon=a[1].icon; t.appliesTo=a[1].appliesTo; t.properties=a[1].properties||[]; } }
+        else if(fn==='mtCreateType'){ if(self.d.types.some(function(x){ return x.name.toLowerCase()===a[0].name.toLowerCase(); })) throw new Error('There\u2019s already a job called '+a[0].name+'.');
+          self.d.types.push({id:'J'+self.d.next++,name:a[0].name,icon:a[0].icon,every:a[0].every,remind:a[0].remind,appliesTo:a[0].appliesTo,properties:a[0].properties||[],howTo:a[0].howTo,active:true}); }
         ok(self.state());
       }catch(e){ fail(e); }
     },250); });

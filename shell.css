@@ -131,3 +131,5 @@ details{margin:14px 0}summary{cursor:pointer;color:var(--acc);font-weight:700}
 body.modal-open{overflow:hidden}
 /* no pull-to-refresh (as in the apps): a reload mid-task can lose what's being typed */
 html,body{overscroll-behavior-y:none}
+/* the header stays put and the page scrolls under it, as in the apps */
+header{position:sticky;top:0;z-index:20}

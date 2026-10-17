@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.20.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.21.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -102,7 +102,7 @@ function speedNote(fn,ms,timing,ok){ S.speed=S.speed||[]; S.speed.unshift({fn:fn
 ['tmBootstrap','tmSaveViewing','tmSetViewingStatus','tmSaveAttendee','tmRemoveAttendee','tmSendApplications','tmRefresh',
  'tmUpdateApplication','tmGetReferences','tmCreditDetails','tmPhotoIdFile','tmDriveFile','tmScreeningQuestions','tmSaveScreeningQuestions','tmSaveReferenceCheck','tmAddContact','tmMarkEmailSent','tmGetVersion','tmSetGroup','tmDetachFromViewing','tmDeleteViewing','tmResendApplyLink','tmCancelApplyForm','tmCreateGroup','tmUpdateGroupDetails','tmAddToGroup','tmSetGroupArrival','tmSetAttendance','tmMoveGroupToViewing','tmSaveTribunalCheck','tmTribunalSearch','tmGetProgress','tmSaveAgreementSettings','tmSendAgreement','tmRefreshAgreement','tmCancelAgreement',
  'tmSaveProperty','tmSetPropertyActive','tmSaveLandlord','tmDeleteLandlord','tmSaveTenancy','tmDeleteTenancy','tmCreateTenancyFromGroup',
- 'tmRecordBondPayment','tmDeleteBondPayment','tmSendBondReceipt','tmMarkBondLodged','tmSetBondNumber','tmSetBondMethod',
+ 'tmRecordBondPayment','tmSendBondRequests','tmRemindBondRequest','tmDeleteBondPayment','tmSendBondReceipt','tmMarkBondLodged','tmSetBondNumber','tmSetBondMethod',
  'tmPreviewAgreement','tmResendAgreementLink','tmChangeTenants','tmRefreshTenancyChange','tmCancelTenancyChange','tmResendChangeLink','tmSetBondTask','tmTenancySummary','tmSaveTermsMaster','tmCopyTermsToProperties','tmBodyCorporateFiles','tmUploadBodyCorporateRules','tmTenantProfile','tmSaveTenantProfile','tmGroupDeletePlan','tmDeleteGroup','tmSetAdminPin','tmSavePerson','tmMergePeople','tmAgreementProgress','tmChangeProgress','tmSaveMyProfile','tmTestCreateGroup','tmTestSendForms','tmTestFillForm','tmTestApprove','tmTestSendAgreement','tmTestSignNext','tmTestStartChange','tmTestNextName','tmTestFinish'].forEach(function(n){
   api[n]=function(){ var a=[].slice.call(arguments), t0=Date.now(), w=!TM_READS.test(n);
     if(w) S.saving=(S.saving||0)+1;   // a save in progress: leaving the page now could lose it
@@ -1559,7 +1559,7 @@ function newPropDialog(fromId){
     if(setupProps().some(function(x){ return x.active && String(x.name||'').trim().toLowerCase()===name.toLowerCase(); })){ $('#npErr',m).textContent='A property with that name already exists \u2014 use a different name.'; return; }
     m.remove();
     var e={_for:'new'}; PE_FIELDS.forEach(function(k){ e[k]=''; });
-    if(p){ ['notes','rent','tenancy','bond','maxOccupants','insurer','insurancePolicy','excess','templateId','templateTitle','landlord','rentPaymentDetails','pets','unitTitle','bodyCorporateRules','bottledGas','internetIncluded','power','powerCap','powerDays','moistureMaster'].forEach(function(k){ e[k]=p[k]!=null?p[k]:''; });
+    if(p){ ['notes','rent','tenancy','bond','maxOccupants','insurer','insurancePolicy','excess','templateId','templateTitle','landlord','rentPaymentDetails','pets','unitTitle','bodyCorporateRules','bottledGas','internetIncluded','power','powerCap','powerDays','moistureMaster','bankAccount','bankAccountName'].forEach(function(k){ e[k]=p[k]!=null?p[k]:''; });
       e.rooms=clone(p.rooms||[]);
       e.additionalTerms=(p.additionalTerms||[]).slice();
       e.chattels=(p.chattels||[]).slice(); e.insulation=insOf(p.insulation); e.healthyHomes=hhOf(p.healthyHomes);
@@ -1582,7 +1582,7 @@ function propProblem(p){
   return '';
 }
 var PE_FIELDS=['propertyId','name','address1','address2','notes','rent','tenancy','bond','maxOccupants','insurer','insurancePolicy','excess','insulationDate','templateId','templateTitle','landlord',
-  'rentPaymentDetails','pets','unitTitle','bodyCorporateRules','bottledGas','internetIncluded','power','powerCap','powerDays','moistureMaster'];
+  'rentPaymentDetails','pets','unitTitle','bodyCorporateRules','bottledGas','internetIncluded','power','powerCap','powerDays','moistureMaster','bankAccount','bankAccountName'];
 /* Free-text property terms written into built-in agreements: [key, label, required for built-in, placeholder] */
 var ESIGN_TERMS=[['rentPaymentDetails','How rent is paid',true,'e.g. Weekly in advance to 12-3456-7890123-00 (K Box), reference: your surname'],
   ['pets','Pets',false,'Leave blank to use the standard wording']];
@@ -1886,7 +1886,10 @@ VIEWS.propEdit = function(id){
       '<div id="peBondHint" class="small muted" style="margin:-6px 0 10px"></div>'+
       '<div class="grid2"><label class="fld"><span>Maximum occupants</span><input type="number" inputmode="numeric" min="1" data-pe="maxOccupants" value="'+esc(e.maxOccupants)+'"></label>'+
       '<label class="fld"><span>Length of tenancy</span><select data-pe="tenancy"><option value="">\u2014</option>'+tens.map(function(t){ return '<option'+(t===ten?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+
-        (ten&&tens.indexOf(ten)<0?'<option selected>'+esc(ten)+'</option>':'')+'</select></label></div></div>';
+        (ten&&tens.indexOf(ten)<0?'<option selected>'+esc(ten)+'</option>':'')+'</select></label></div>'+
+      // TM 3.21.0: where tenants pay their bond (used in bond payment requests)
+      '<div class="grid2"><label class="fld"><span>Bank account for the bond</span><input type="text" inputmode="numeric" data-pe="bankAccount" value="'+esc(e.bankAccount||'')+'" placeholder="12-3456-7890123-00"></label>'+
+      '<label class="fld"><span>Name on the account</span><input type="text" data-pe="bankAccountName" value="'+esc(e.bankAccountName||'')+'" placeholder="e.g. K Box"></label></div></div>';
     h+='<div class="card" id="peBc" data-paint>'+bcCardHtml(e)+'</div>';
     if(e.unitTitle) loadBcFiles();
     if(id) h+='<div class="sep"></div><button class="btn block'+(p.active?' danger':'')+'" type="button" data-act="prop-active" data-id="'+esc(id)+'">'+(p.active?'Archive property':'Restore property')+'</button>'+
@@ -2483,12 +2486,84 @@ function bondSection(t){
       '<div class="row" style="gap:6px">'+(p.receiptPdf?'<a class="btn sm" target="_blank" rel="noopener" href="'+esc(p.receiptPdf)+'" aria-label="Open receipt">\uD83D\uDCC4</a>':'')+
       '<button class="btn sm" type="button" data-act="bond-receipt" data-id="'+esc(p.id)+'">\u2709 Receipt</button>'+
       (p.lodgedAt?'':'<button class="btn sm" type="button" data-act="bond-pay-del" data-id="'+esc(p.id)+'" aria-label="Delete payment">\uD83D\uDDD1</button>')+'</div></div>'; }).join('')+'</div>';
+  if(!ts&&t.bondRequests&&(t.bondRequests.list||[]).length) h+=bondRequestsHtml(t,pays);
   var acts='';
+  if(!ts&&paid<bond-0.005&&(t.tenants||[]).length) acts+='<button class="btn sm'+(t.bondRequests?'':' primary')+'" type="button" data-act="bond-request" data-id="'+esc(t.id)+'">\u2709 '+(t.bondRequests?'Request again':'Request bond')+'</button>';
   if(!ts&&paid<bond-0.005) acts+='<button class="btn sm primary" type="button" data-act="bond-pay" data-id="'+esc(t.id)+'">\uFF0B Record payment</button>';
   if((!ts&&open.length)||(ts&&!t.bondLodgedAt&&!t.bondNumber)) acts+='<button class="btn sm primary" type="button" data-act="bond-lodge" data-id="'+esc(t.id)+'">\uD83C\uDFDB Lodge in Bond Hub</button>';
   if((b.code==='waiting'||b.code==='done')) acts+='<button class="btn sm" type="button" data-act="bond-number" data-id="'+esc(t.id)+'">'+(t.bondNumber?'Bond number':'\uFF0B Add bond number')+'</button>';
   if(acts) h+='<div class="row wrap" style="gap:8px;margin-block-start:10px">'+acts+'</div>';
   return h+'</div>';
+}
+
+/* ---------- Bond payment requests (TM 3.21.0) ---------- */
+/* What each tenant was asked for, what they've paid (payments recorded in their name), when it was sent and each reminder */
+function bondRequestsHtml(t,pays){
+  var r=t.bondRequests, today=todayYmd(), late=r.dueBy<today;
+  return '<div style="margin-block-start:12px"><div class="small muted" style="margin-block-end:4px">Payment requests \u00B7 due '+esc(ymdLabel(r.dueBy))+' \u00B7 '+esc(r.account)+'</div>'+(r.list||[]).map(function(x){
+    var got=sumPays(pays.filter(function(p){ return String(p.paidBy).trim().toLowerCase()===String(x.name).trim().toLowerCase(); })), done=got>=x.amount-0.005;
+    var rem=(x.reminders||[]).map(function(d){ return fmtDate(d); });
+    return '<div class="member" style="align-items:flex-start"><div class="grow"><div><b>'+esc(x.name)+'</b> \u00B7 $'+esc(money2(x.amount))+
+      (done?' <span class="pill st-done">\u2713 Paid</span>':got?' <span class="pill st-warn">$'+esc(money2(got))+' paid</span>':late?' <span class="pill st-bad">Overdue</span>':'')+'</div>'+
+      '<div class="small muted">Sent '+esc(fmtDate(x.sentAt))+(rem.length?' \u00B7 reminded '+esc(rem.join(', ')):'')+'</div></div>'+
+      (done?'':'<button class="btn sm" type="button" data-act="bond-remind" data-id="'+esc(t.id)+'" data-email="'+esc(x.email)+'">\uD83D\uDD14 Remind</button>')+'</div>';
+  }).join('')+'</div>';
+}
+/* The bank account for a tenancy: the property's, else one written in its rent payment details */
+function propAccount(t){
+  var p=setupPropById(t.propertyId)||{}, acc=String(p.bankAccount||'').trim();
+  if(!acc){ var m=/\b\d{2}[- ]?\d{4}[- ]?\d{7}[- ]?\d{2,3}\b/.exec(String(p.rentPaymentDetails||'')); if(m) acc=m[0]; }
+  return {account:acc,name:String(p.bankAccountName||'').trim(),saved:!!String(p.bankAccount||'').trim()};
+}
+/* Request bond: each tenant's share (a room: its bond; the whole property: shared between the tenants, or by the maximum
+   number of occupants when not every place is taken yet), the due date (5 working days) and the account - confirmed before sending */
+function bondRequestDialog(t){
+  var bond=+t.bond||0, people=(t.tenants||[]).filter(function(p){ return p.email; }), noEmail=(t.tenants||[]).filter(function(p){ return !p.email; });
+  var prop=setupPropById(t.propertyId)||{}, maxOcc=+prop.maxOccupants||0, n=(t.tenants||[]).length||1, acc=propAccount(t);
+  var split=t.room?'room':(maxOcc>n?'ask':'tenants'), by=split==='ask'?'tenants':split;
+  var share=function(k){ return Math.round(bond/(k==='occupants'?maxOcc:n)*100)/100; };
+  var due=addWorkingDays(todayYmd(),5,holidaySet());
+  var m=modal('<div class="title" style="font-size:1.1rem;margin-block-end:4px">Request bond</div>'+
+    '<div class="small muted" style="margin-block-end:12px">'+(t.room?esc(t.room)+' bond':'Bond for the property')+': <b>$'+esc(money2(bond))+'</b>'+(t.room?'':' \u00B7 '+n+' tenant'+(n===1?'':'s')+(maxOcc?' \u00B7 up to '+maxOcc+' occupants':''))+'</div>'+
+    (split==='ask'?'<div class="small" style="font-weight:700;margin-block-end:6px">How should the bond be shared?</div><div class="seg" id="brSplit" style="grid-template-columns:1fr;margin-block-end:4px">'+
+      '<button type="button" data-split="tenants" class="on">Between the '+n+' tenant'+(n===1?'':'s')+' \u00B7 $'+esc(money2(share('tenants')))+' each</button>'+
+      '<button type="button" data-split="occupants">By the '+maxOcc+' maximum occupants \u00B7 $'+esc(money2(share('occupants')))+' each</button></div>'+
+      '<div class="small muted" style="margin-block-end:12px">Not every place is taken yet. Sharing by the maximum occupants leaves the rest of the bond for whoever joins later.</div>':'')+
+    '<div id="brPeople"></div>'+
+    (noEmail.length?'<div class="small" style="color:var(--miss);margin-block-end:8px">No email address for '+esc(noEmail.map(function(p){ return p.name; }).join(', '))+', so they can\u2019t be sent a request.</div>':'')+
+    '<div class="grid2"><label class="fld"><span>Pay by</span><input type="date" id="brDue" value="'+esc(due)+'" min="'+esc(todayYmd())+'"></label>'+
+    '<label class="fld"><span>Bank account</span><input type="text" inputmode="numeric" id="brAcc" value="'+esc(acc.account)+'" placeholder="12-3456-7890123-00"></label></div>'+
+    '<label class="fld"><span>Name on the account</span><input type="text" id="brName" value="'+esc(acc.name)+'"></label>'+
+    (acc.saved?'':'<label class="row" style="gap:10px;margin-block-end:10px;cursor:pointer"><input type="checkbox" id="brSave" checked style="width:20px;height:20px;flex:none"><span class="small">Save this account on the property for next time</span></label>')+
+    (t.bondRequests?'<div class="small" style="color:var(--miss);margin-block-end:8px">This replaces the requests sent '+esc(fmtDate((t.bondRequests.list[0]||{}).sentAt))+'.</div>':'')+
+    '<div id="brErr" class="err"></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" type="button" data-br="cancel">Cancel</button><button class="btn primary" type="button" data-br="send">\u2709 Send requests</button></div>');
+  function people_(){
+    var each=by==='room'?Math.round(bond/n*100)/100:share(by);
+    $('#brPeople',m).innerHTML='<div class="small" style="font-weight:700;margin-block-end:6px">Each tenant is asked for</div>'+people.map(function(p){
+      return '<div class="row" style="gap:10px;margin-block-end:8px;align-items:center"><input type="checkbox" class="brOn" data-email="'+esc(p.email)+'" checked style="width:20px;height:20px;flex:none">'+
+        '<span class="grow" style="min-width:0"><b>'+esc(whoText(p))+'</b><span class="small muted" style="display:block;overflow:hidden;text-overflow:ellipsis">'+esc(p.email)+'</span></span>'+
+        '<span style="flex:none;width:110px"><input type="number" inputmode="decimal" min="0" step="0.01" class="brAmt" data-email="'+esc(p.email)+'" value="'+esc(money2(each))+'" aria-label="Amount for '+esc(p.name)+'"></span></div>';
+    }).join('')+'<div class="small muted" id="brTotal" style="margin-block-end:12px"></div>';
+    total_();
+  }
+  function total_(){ var sum=[].reduce.call(m.querySelectorAll('.brAmt'),function(a,el){ var on=m.querySelector('.brOn[data-email="'+el.getAttribute('data-email')+'"]'); return a+(on&&on.checked?(+el.value||0):0); },0);
+    $('#brTotal',m).textContent='Total asked for: $'+money2(sum)+' of $'+money2(bond)+(Math.abs(sum-bond)<0.005?'':' (the other $'+money2(Math.max(0,bond-sum))+' isn\u2019t asked for yet)'); }
+  people_();
+  m.addEventListener('input',function(e){ if(e.target.classList.contains('brAmt')) total_(); });
+  m.addEventListener('change',function(e){ if(e.target.classList.contains('brOn')) total_(); });
+  m.addEventListener('click',function(e){
+    var sp=e.target.closest('[data-split]'); if(sp){ by=sp.getAttribute('data-split'); [].forEach.call(m.querySelectorAll('[data-split]'),function(x){ x.classList.toggle('on',x===sp); }); people_(); return; }
+    var b=e.target.closest('[data-br]'); if(!b){ if(e.target===m) m.remove(); return; }
+    if(b.getAttribute('data-br')==='cancel') return m.remove();
+    var list=[].filter.call(m.querySelectorAll('.brOn'),function(c){ return c.checked; }).map(function(c){ var em=c.getAttribute('data-email'); return {email:em,amount:+m.querySelector('.brAmt[data-email="'+em+'"]').value}; });
+    var accV=$('#brAcc',m).value.trim(), sum=list.reduce(function(a,x){ return a+(x.amount||0); },0);
+    var err=!list.length?'Tick at least one tenant.':list.some(function(x){ return !(x.amount>0); })?'Check each amount.':sum>bond+0.005?'That adds up to $'+money2(sum)+', more than the $'+money2(bond)+' bond.':
+      !/^\d{2}[- ]?\d{4}[- ]?\d{7}[- ]?\d{2,3}$/.test(accV)?'Check the bank account number (like 12-3456-7890123-00).':!$('#brName',m).value.trim()?'Enter the name on the account.':!$('#brDue',m).value?'Choose the date it\u2019s due by.':'';
+    if(err){ $('#brErr',m).textContent=err; return; }
+    var d={dueBy:$('#brDue',m).value,account:accV,accountName:$('#brName',m).value.trim(),split:by,saveAccount:!!($('#brSave',m)&&$('#brSave',m).checked),list:list};
+    busy(b,'Sending',api.tmSendBondRequests(t.id,d)).then(function(st){ m.remove(); apply(st); var f=st.bondRequestFailed||[];
+      toast(f.length?'Sent, but not to: '+f.join('; '):'Bond requests sent',f.length?7000:3000); render(); }).catch(function(x){ $('#brErr',m).textContent=x&&x.message||'Couldn\u2019t send them'; });
+  });
 }
 
 /* Record a bond payment received, and email the receipt */
@@ -3732,6 +3807,10 @@ document.addEventListener('click',function(e){
   if(act==='tenancy-delete') return ask('Delete this tenancy record for <b>'+esc(tenancyNames(tenancyById(id)))+'</b>? If the tenancy has finished, edit it and mark it Ended instead.','Delete').then(function(ok){ if(!ok) return;
     return busy(t,'Deleting',api.tmDeleteTenancy(id)).then(function(st){ apply(st); toast('Tenancy deleted'); back(); }); }).catch(function(){});
   if(act==='bond-pay') return bondPayDialog(tenancyById(id));
+  if(act==='bond-request') return bondRequestDialog(tenancyById(id));
+  if(act==='bond-remind'){ var rem=t.getAttribute('data-email'), rt=tenancyById(id), rx=((rt.bondRequests||{}).list||[]).find(function(x){ return x.email===rem; });
+    return ask('Email '+esc(rx?rx.name:rem)+' a reminder about their bond payment'+(rx?' of <b>$'+esc(money2(rx.amount))+'</b>':'')+'?','Send reminder').then(function(ok){ if(!ok) return;
+      return busy(t,'Sending',api.tmRemindBondRequest(id,rem)).then(function(st){ apply(st); toast('Reminder sent'); render(); }).catch(function(){}); }); }
   if(act==='bond-receipt') return bondReceiptDialog(((S.st&&S.st.bondPayments)||[]).find(function(p){ return p.id===id; }));
   if(act==='bond-lodge') return bondLodgeDialog(tenancyById(id));
   if(act==='bond-number') return bondNumberDialog(tenancyById(id));
@@ -4232,6 +4311,10 @@ var Demo = {
         d.applications.forEach(function(x){ if((x.group||x.ref)!==a[0]) return; if(gp){ x.propertyId=gp.propertyId; x.address1=gp.address1; x.address2=gp.address2; }
           x.rent=gx.rent===''?'':+gx.rent; x.tenancy=gx.tenancy; x.moveIn=gx.moveIn?gx.moveIn+'T00:00:00.000Z':''; x.source=gx.source; x.sourceNotes=gx.notes; });
         return done(Demo.state(d));
+      case 'tmSendBondRequests': var bt=(d.tenancies||[]).find(function(x){ return x.id===a[0]; }), bnow=new Date().toISOString(), bmap={}; (bt.tenants||[]).forEach(function(p){ bmap[p.email]=p.name; });
+        bt.bondRequests={account:a[1].account,accountName:a[1].accountName,dueBy:a[1].dueBy,split:a[1].split,list:a[1].list.map(function(x){ return {email:x.email,name:bmap[x.email],amount:x.amount,sentAt:bnow,reminders:[]}; })};
+        return done(Demo.state(d));
+      case 'tmRemindBondRequest': var rt2=(d.tenancies||[]).find(function(x){ return x.id===a[0]; }); ((rt2.bondRequests||{}).list||[]).forEach(function(x){ if(x.email===a[1]) (x.reminders=x.reminders||[]).push(new Date().toISOString()); }); return done(Demo.state(d));
       case 'tmGetReferences': return done(Demo.refs(d,a[0]));
       case 'tmScreeningQuestions': return done({sets:JSON.parse(JSON.stringify(d.questions)),legacy:false});
       case 'tmSaveScreeningQuestions': d.questions=a[0].map(function(q,i){ return {id:q.id||('QS-n'+i),name:q.name.trim(),note:q.note||'',flags:q.kind==='Red flags',usedFor:q.kind==='Red flags'?[]:q.usedFor.slice(),items:q.items.map(function(x){ return String(x).trim(); }).filter(String)}; }); return done({sets:JSON.parse(JSON.stringify(d.questions)),legacy:false});

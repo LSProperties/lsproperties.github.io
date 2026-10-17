@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.21.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.21.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];
@@ -257,7 +257,7 @@ function peopleHome(){
   var count={all:all.length}; all.forEach(function(p){ count[p.status]=(count[p.status]||0)+1; });
   var list=all.filter(function(p){ return (f==='all'||p.status===f) &&
       (!raw || nameKey(p.name).indexOf(q)>=0 || nameKey(p.knownAs).indexOf(q)>=0 || String(p.email||'').toLowerCase().indexOf(raw.toLowerCase())>=0 || (qd.length>=3 && String(p.mobile||'').replace(/\D/g,'').indexOf(qd)>=0)); })
-    .sort(function(a,b){ return String(b.lastAt||'').localeCompare(String(a.lastAt||'')) || String(a.name).localeCompare(String(b.name)); });
+    .sort(function(a,b){ return String(a.name||'').trim().localeCompare(String(b.name||'').trim(),'en-NZ',{sensitivity:'base'}) || String(b.lastAt||'').localeCompare(String(a.lastAt||'')); });   // A to Z (3.21.1)
   var h='<div class="row" style="gap:8px;margin-block-end:10px"><input type="search" id="pplSearch" class="grow" placeholder="Search name, email or phone\u2026" value="'+esc(S.pq||'')+'"></div>'+
     '<div class="filters">'+[['all','All']].concat(PERSON_STATUSES.map(function(x){ return [x,x]; })).map(function(x){ return '<button type="button" data-act="pfilter" data-id="'+esc(x[0])+'" class="'+(f===x[0]?'on':'')+'">'+esc(x[1])+' <span class="fcount">'+(count[x[0]]||0)+'</span></button>'; }).join('')+'</div>';
   if(!list.length) h+='<div class="card empty small">'+(raw?'Nobody matches \u201C'+esc(raw)+'\u201D.':'Nobody here yet.')+'</div>';

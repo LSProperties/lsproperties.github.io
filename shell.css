@@ -120,3 +120,12 @@ details{margin:14px 0}summary{cursor:pointer;color:var(--acc);font-weight:700}
 #hdrHome{flex:none;display:block;width:40px;height:40px;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.18);line-height:0}
 #hdrHome[hidden]{display:none}
 #hdrHome img{display:block;width:40px;height:40px}
+/* Setup isn't animated: an animated (transformed) parent makes iPhone place the "fixed" bottom menu inside it, so it floated */
+#setup{animation:none}
+/* pop-up (a person's details in Users and access) */
+.modal{position:fixed;inset:0;z-index:30;display:flex;align-items:flex-end;justify-content:center;padding:12px;background:rgba(8,20,28,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);animation:fade .2s both}
+.modal .box{width:100%;max-width:480px;max-height:calc(100vh - 24px - env(safe-area-inset-top));overflow:auto;background:var(--card);border-radius:24px;padding:20px;
+  padding-bottom:max(20px,env(safe-area-inset-bottom));box-shadow:var(--shadow-lg);animation:pop .28s cubic-bezier(.2,1.2,.4,1) both}
+@media (min-width:600px){.modal{align-items:center}}
+@keyframes fade{from{opacity:0}}@keyframes pop{from{opacity:0;transform:translateY(24px) scale(.97)}}
+body.modal-open{overflow:hidden}

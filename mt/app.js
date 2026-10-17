@@ -1,6 +1,6 @@
 (function(){
 'use strict';
-var APP_VERSION = '1.2.0';   // Maintenance page (1.1.0: jobs can be turned off; Manage jobs opens from Setup on the home screen)
+var APP_VERSION = '1.3.0';   // Maintenance page (1.1.0: jobs can be turned off; Manage jobs opens from Setup on the home screen)
 var $=function(s,r){ return (r||document).querySelector(s); };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -60,6 +60,9 @@ function render(){
   else if(S.view==='reminders') h='<div id="pushBox"></div>';
   else h=listHtml();
   $('#app').innerHTML=h;
+  var tabs=[['list','\uD83D\uDD27','Jobs'],['reminders','\uD83D\uDD14','Reminders']].concat(canEdit()?[['manage','\u2699\uFE0F','Manage jobs']]:[]), cur=S.view==='task'?'list':S.view, nav=$('#mtTabs');
+  nav.innerHTML=S.d? tabs.map(function(t){ return '<button type="button" data-tab="'+t[0]+'" class="'+(cur===t[0]?'on':'')+'"'+(cur===t[0]?' aria-current="page"':'')+'><span class="ic" aria-hidden="true">'+t[1]+'</span>'+t[2]+'</button>'; }).join('') : '';
+  nav.classList.toggle('hidden',!S.d);
   if(S.view==='reminders'){ var b=$('#pushBox'); if(window.RentalsPush) window.RentalsPush.mount(b,{only:['maintenance']}); else b.innerHTML='<div class="card muted">Reminders can be turned on in the Rentals app on your phone.</div>'; }
   window.scrollTo(0,0);
 }
@@ -82,9 +85,7 @@ function listHtml(){
     }).join('');
   });
   if(!tasks.length) h+='<div class="card muted">Nothing to show. Jobs appear here for active properties: tick <b>Has a Moisture Master unit</b> on a property in Tenancies › Setup › Properties.</div>';
-  h+='<div class="actions"><button class="btn" type="button" data-act="reminders">🔔 Reminders</button>'+
-    (canEdit()?'<button class="btn" type="button" data-act="manage">⚙️ Manage jobs</button>':'')+'</div>'+
-    (canEdit()?'':'<p class="small muted">You can look at everything here, but not record or change anything.</p>');
+  h+=(canEdit()?'':'<p class="small muted">You can look at everything here, but not record or change anything.</p>');
   return h;
 }
 function taskHtml(){
@@ -149,6 +150,7 @@ function removeEntry(row,b){
 document.addEventListener('click',function(e){
   var t=e.target.closest('button'); if(!t) return;
   if(t.id==='backBtn'){ if(S.fromSetup&&S.view==='manage'){ location.href='../#setup'; return; } S.view='list'; S.other=false; render(); return; }
+  if(t.dataset.tab){ S.view=t.dataset.tab; S.other=false; S.fromSetup=false; render(); return; }   // the bottom menu
   if(t.dataset.task){ S.key=t.dataset.task; S.view='task'; S.other=false; render(); return; }
   if(t.dataset.filter){ S.filter=t.dataset.filter; render(); return; }
   if(t.dataset.undo){ $('#toast').classList.add('hidden'); removeEntry(t.dataset.undo,null); return; }

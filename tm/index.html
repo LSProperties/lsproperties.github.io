@@ -304,7 +304,7 @@ input[type=checkbox]{accent-color:#0d9488}
 .filters .fcount{display:inline-block;min-width:18px;padding:0 5px;margin-inline-start:2px;border-radius:99px;background:rgba(127,127,127,.18);font-size:.72rem}
 .filters button.on .fcount{background:rgba(255,255,255,.25)}
 .err{color:var(--bad);font-size:.82rem;margin-block-start:4px}
-.tabbar{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;width:100%}
+.tabbar{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:2px;width:100%}   /* as many equal columns as there are buttons (no Setup tab in the Rentals app: 3.20.1) */
 .tabbar.petabs{grid-template-columns:repeat(5,1fr)}
 .tabbar button{position:relative;border:0;background:transparent;border-radius:16px;min-height:56px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:.72rem;font-weight:750;color:var(--muted);cursor:pointer;min-width:0}
 .tabbar button .ic{font-size:1.35rem;line-height:1}
@@ -431,9 +431,9 @@ input[type=date]::-webkit-date-and-time-value,input[type=month]::-webkit-date-an
 <div id="footer" class="footer hidden"><div class="in" id="footerIn"></div></div>
 <div id="toast"></div>
 
-<script src="../config.js?v=2026.10.17-5102c1a"></script>
-<script src="../api.js?v=2026.10.17-5102c1a"></script>
-<script src="../push.js?v=2026.10.17-5102c1a"></script>
-<script src="app.js?v=2026.10.17-5102c1a"></script>
+<script src="../config.js?v=2026.10.17-5d684ec"></script>
+<script src="../api.js?v=2026.10.17-5d684ec"></script>
+<script src="../push.js?v=2026.10.17-5d684ec"></script>
+<script src="app.js?v=2026.10.17-5d684ec"></script>
 </body>
 </html>

@@ -101,7 +101,6 @@
     if (!u) h += '<div class="small">Loading…</div>';
     else if (u.error) h += '<div class="err">' + esc(u.error) + '</div>';
     else {
-      if (D.editing) h += userForm(D.editing);
       h += u.users.map(function (x) {
         var lv = function (k, n) { var v = x.access[k]; return '<span class="pill ' + v + '">' + n + ' \u00B7 ' + ({ edit: 'Edit', view: 'View', none: 'None' })[v] + '</span>'; };
         return '<div class="urow" data-user="' + esc(x.email) + '"><div class="avatar" aria-hidden="true"' + (x.active ? '' : ' style="filter:grayscale(1);opacity:.6"') + '>' + esc(initials(x.name, x.email)) + '</div><div class="txt"><b>' + esc(x.name || x.email) + '</b>' +
@@ -126,7 +125,7 @@
       return '<label class="fld"><span>' + id + '</span><select data-uf="' + id.toLowerCase() + '"' + (locked ? ' disabled' : '') + '>' +
         [['', 'From role'], ['Edit', 'Edit'], ['View', 'View'], ['None', 'None']].map(function (o) { return '<option value="' + o[0] + '"' + (String(v) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>';
     };
-    return '<div class="card" style="background:var(--card)" id="userForm"><div class="title">' + (isNew ? 'Add someone' : esc(x.name || x.email)) + '</div>' +
+    return '<div id="userForm"><div class="title" style="font-size:1.2rem;margin-bottom:10px">' + (isNew ? 'Add someone' : esc(x.name || x.email)) + '</div>' +
       (locked ? '<div class="small" style="margin:4px 0 10px">' + (x.owner ? 'The owner account can only be changed in the spreadsheet.' : 'You can’t change your own access. Ask another admin.') + '</div>' : '') +
       (isNew ? '<label class="fld"><span>Email</span><input data-uf="email" type="email" autocomplete="off"></label>' : '') +
       '<label class="fld"><span>Name</span><input data-uf="name" value="' + esc(x.name) + '"' + (locked ? ' disabled' : '') + '></label>' +
@@ -141,9 +140,35 @@
   }
 
   function busy(b, p) { b.disabled = true; return p.then(function (r) { b.disabled = false; return r; }, function (e) { b.disabled = false; throw e; }); }
+  /* A person's details open in a pop-up over the list (tap outside, Cancel or Esc closes it) */
+  function userModal(key) {
+    closeUserModal();
+    D.editing = key;
+    var m = document.createElement('div');
+    m.className = 'modal'; m.id = 'userModal'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+    m.innerHTML = '<div class="box">' + userForm(key) + '</div>';
+    document.body.appendChild(m); document.body.classList.add('modal-open');
+    m.addEventListener('click', function (e) {
+      if (e.target === m) return closeUserModal();
+      var b = e.target.closest('[data-su]'); if (!b) return;
+      var act = b.getAttribute('data-su');
+      if (act === 'cancel-user') return closeUserModal();
+      if (act === 'save-user') {
+        var f = $('userForm'), v = function (k) { var el = f.querySelector('[data-uf="' + k + '"]'); return el ? el.value : ''; }, isNew = !!b.getAttribute('data-new');
+        var u = { email: isNew ? v('email') : D.editing, name: v('name'), role: v('role'), active: v('active') === 'yes', tenancies: v('tenancies'), inspections: v('inspections'), maintenance: v('maintenance') };
+        $('ufMsg').textContent = '';
+        busy(b, call('auth', 'saveUser', [], { pin: v('pin'), user: u, isNew: isNew })).then(function (r) { D.users = r; closeUserModal(); draw(); },
+          function (x) { $('ufMsg').textContent = x.message; });
+      }
+    });
+    var first = m.querySelector('input:not([disabled]),select:not([disabled])'); if (first && key === 'new') first.focus();
+  }
+  function closeUserModal() { var m = $('userModal'); if (m) m.remove(); document.body.classList.remove('modal-open'); D.editing = null; }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('userModal')) closeUserModal(); });
+
   $('setupBody').addEventListener('click', function (e) {
     var row = e.target.closest('[data-user]');
-    if (row) { D.editing = row.getAttribute('data-user'); draw(); var f = $('userForm'); if (f) f.scrollIntoView({ block: 'start' }); return; }
+    if (row) return userModal(row.getAttribute('data-user'));
     var b = e.target.closest('[data-su]'); if (!b) return;
     var act = b.getAttribute('data-su');
     if (act === 'profile') {
@@ -157,15 +182,7 @@
       $('pinMsg').textContent = 'Saving…';
       busy(b, call('auth', 'setPin', [], { current: ($('pinCur') || {}).value || '', next: $('pinNew').value })).then(function () { D.pin = true; draw(); $('pinMsg').textContent = 'PIN saved.'; },
         function (x) { $('pinMsg').innerHTML = '<span class="err">' + esc(x.message) + '</span>'; });
-    } else if (act === 'add') { D.editing = 'new'; draw(); }
-    else if (act === 'cancel-user') { D.editing = null; draw(); }
-    else if (act === 'save-user') {
-      var f = $('userForm'), v = function (k) { var el = f.querySelector('[data-uf="' + k + '"]'); return el ? el.value : ''; }, isNew = !!b.getAttribute('data-new');
-      var u = { email: isNew ? v('email') : D.editing, name: v('name'), role: v('role'), active: v('active') === 'yes', tenancies: v('tenancies'), inspections: v('inspections'), maintenance: v('maintenance') };
-      $('ufMsg').textContent = '';
-      busy(b, call('auth', 'saveUser', [], { pin: v('pin'), user: u, isNew: isNew })).then(function (r) { D.users = r; D.editing = null; draw(); },
-        function (x) { $('ufMsg').textContent = x.message; });
-    }
+    } else if (act === 'add') userModal('new');
   });
   $('setup').addEventListener('click', function (e) {
     var t = e.target.closest('[data-sutab]'); if (!t) return;

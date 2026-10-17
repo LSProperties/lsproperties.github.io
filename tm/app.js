@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 
-var APP_VERSION = '3.20.0';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
+var APP_VERSION = '3.20.1';  // shown on the home screen - must match TM.VERSION in TenantApp.gs; bump both on every change
 var TENANCY = ['12 months','6 months','Periodic','Fixed term (other)'];
 var REF_STATUSES = ['Not started','No contact','Completed','Not required'];
 var OUTCOMES = ['Positive','Neutral','Concern'];

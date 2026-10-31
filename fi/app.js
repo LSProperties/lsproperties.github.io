@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= Configuration ================= */
-var APP_VERSION = '1.19.0';  // shown on the home screen — use it to confirm the live app is up to date
+var APP_VERSION = '1.19.1';  // shown on the home screen — use it to confirm the live app is up to date
 var STATUSES = [
   {k:'ok',      s:'OK',       i:'✓',  l:'OK / good condition'},
   {k:'clean',   s:'Requires Cleaning', i:'🧽', l:'Requires cleaning'},
@@ -1424,6 +1424,8 @@ document.addEventListener('click',function(ev){
     case 'open-prop': go('start',id); break;
     case 'begin':
       if(OLD_APP && S.retire==='block'){ toast('New inspections are started in the new Rentals app now.',6000); break; }
+      // inspections moved to the new LS Rentals app (2026-10-31): the Rentals app starts no new ones; ones already started can still be finished
+      if(window.RENTALS_CONFIG){ if(confirm('New inspections are done in the new LS Rentals app now (app.lsrentals.co.nz). Inspections you already started here can still be finished.\n\nOpen the new app?')) location.href='https://app.lsrentals.co.nz/#/inspections'; break; }
       var p=S.props.find(function(x){return x.id===id;}), insp=signedIn()? inspectorName() : $('#stInspector').value.trim();
       if(!insp){ toast(signedIn()?'Add your name in Setup › My details on the Rentals home screen first':'Please enter the inspector name',5000); return; }
       if(!signedIn()) localStorage.setItem('fi-inspector',insp);
